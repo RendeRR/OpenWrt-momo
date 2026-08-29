@@ -144,10 +144,12 @@ return view.extend({
         o = s.taboption('external_control', form.Value, 'external_control_api_listen', _('API Listen'));
         o.datatype = 'ipaddrport(1)';
         o.placeholder = _('Unmodified');
+        o.autocomplete = 'nope';
 
         o = s.taboption('external_control', form.Value, 'external_control_api_secret', _('API Secret'));
         o.password = true;
         o.placeholder = _('Unmodified');
+        o.autocomplete = 'new-password';
 
         s.tab('singbox_api', _('sing-box API Config'));
 
@@ -160,10 +162,12 @@ return view.extend({
         o = s.taboption('singbox_api', form.Value, 'singbox_api_listen', _('API Listen'));
         o.datatype = 'ipaddrport(1)';
         o.placeholder = _('Unmodified');
+        o.autocomplete = 'nope';
 
         o = s.taboption('singbox_api', form.Value, 'singbox_api_secret', _('API Secret'));
         o.password = true;
         o.placeholder = _('Unmodified');
+        o.autocomplete = 'new-password';
 
         o = s.taboption('singbox_api', form.Flag, 'singbox_api_tls_enabled', _('Enable TLS'));
         o.rmempty = false;

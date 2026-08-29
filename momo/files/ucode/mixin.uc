@@ -60,26 +60,28 @@ if (type(profile['services']) != 'array') {
     profile['services'] = [];
 }
 
-let api_service = {
-    "type": "api",
-    "listen": api_listen,
-    "listen_port": api_listen_port,
-    "secret": uci.get('momo', 'mixin', 'singbox_api_secret'),
-    "dashboard": {
-        "enabled": true,
-        "path": uci.get('momo', 'mixin', 'singbox_api_ui_path'),
-        "download_url": uci.get('momo', 'mixin', 'singbox_api_ui_download_url')
-    }
-};
-
-if (uci_bool(uci.get('momo', 'mixin', 'singbox_api_tls_enabled'))) {
-    api_service["tls"] = {
-        "enabled": true,
-        "certificate_path": uci.get('momo', 'mixin', 'singbox_api_tls_cert_path'),
-        "key_path": uci.get('momo', 'mixin', 'singbox_api_tls_key_path')
+if (api_listen && api_listen_port) {
+    let api_service = {
+        "type": "api",
+        "listen": api_listen,
+        "listen_port": api_listen_port,
+        "secret": uci.get('momo', 'mixin', 'singbox_api_secret'),
+        "dashboard": {
+            "enabled": true,
+            "path": uci.get('momo', 'mixin', 'singbox_api_ui_path'),
+            "download_url": uci.get('momo', 'mixin', 'singbox_api_ui_download_url')
+        }
     };
-}
 
-push(profile['services'], api_service);
+    if (uci_bool(uci.get('momo', 'mixin', 'singbox_api_tls_enabled'))) {
+        api_service["tls"] = {
+            "enabled": true,
+            "certificate_path": uci.get('momo', 'mixin', 'singbox_api_tls_cert_path'),
+            "key_path": uci.get('momo', 'mixin', 'singbox_api_tls_key_path')
+        };
+    }
+
+    push(profile['services'], api_service);
+}
 
 save_profile(merge(profile, trim_all(config)));
