@@ -662,3 +662,12 @@ msgstr "API 监听地址"
 
 msgid "API Secret"
 msgstr "API 密钥"
+
+msgid "Enable TLS"
+msgstr "启用 TLS"
+
+msgid "Certificate Path"
+msgstr "证书路径"
+
+msgid "Key Path"
+msgstr "私钥路径"

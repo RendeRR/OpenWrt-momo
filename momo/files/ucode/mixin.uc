@@ -55,7 +55,7 @@ if (api_listen_str) {
 }
 
 config['services'] = [];
-push(config['services'], {
+let api_service = {
     "type": "api",
     "listen": api_listen,
     "listen_port": api_listen_port,
@@ -65,7 +65,17 @@ push(config['services'], {
         "path": uci.get('momo', 'mixin', 'singbox_api_ui_path'),
         "download_url": uci.get('momo', 'mixin', 'singbox_api_ui_download_url')
     }
-});
+};
+
+if (uci_bool(uci.get('momo', 'mixin', 'singbox_api_tls_enabled'))) {
+    api_service["tls"] = {
+        "enabled": true,
+        "certificate_path": uci.get('momo', 'mixin', 'singbox_api_tls_cert_path'),
+        "key_path": uci.get('momo', 'mixin', 'singbox_api_tls_key_path')
+    };
+}
+
+push(config['services'], api_service);
 
 const profile = load_profile();
 

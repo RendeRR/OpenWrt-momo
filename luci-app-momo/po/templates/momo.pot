@@ -655,3 +655,12 @@ msgstr ""
 
 msgid "API Secret"
 msgstr ""
+
+msgid "Enable TLS"
+msgstr ""
+
+msgid "Certificate Path"
+msgstr ""
+
+msgid "Key Path"
+msgstr ""

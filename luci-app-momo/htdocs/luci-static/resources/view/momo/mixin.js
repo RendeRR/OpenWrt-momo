@@ -165,6 +165,17 @@ return view.extend({
         o.password = true;
         o.placeholder = _('Unmodified');
 
+        o = s.taboption('singbox_api', form.Flag, 'singbox_api_tls_enabled', _('Enable TLS'));
+        o.rmempty = false;
+
+        o = s.taboption('singbox_api', form.Value, 'singbox_api_tls_cert_path', _('Certificate Path'));
+        o.placeholder = '/etc/ssl/acme/luci.rinat.top.fullchain.crt';
+        o.depends('singbox_api_tls_enabled', '1');
+
+        o = s.taboption('singbox_api', form.Value, 'singbox_api_tls_key_path', _('Key Path'));
+        o.placeholder = '/etc/ssl/acme/luci.rinat.top.key';
+        o.depends('singbox_api_tls_enabled', '1');
+
         return m.render();
     }
 });
