@@ -99,11 +99,12 @@ return view.extend({
             return momo.openSingboxDashboard();
         };
 
-        s = m.section(form.TableSection, 'singbox_update', _('Sing-Box Update'));
-        s.anonymous = true;
+        s = m.section(form.NamedSection, 'placeholder', 'placeholder', _('Sing-Box Update'));
 
         o = s.option(form.ListValue, 'singbox_version');
         o.optional = false;
+        o.load = function() { return ''; };
+        o.write = function() {};
         if (Array.isArray(releases)) {
             releases.forEach(r => {
                 if (r.tag_name) {
@@ -115,8 +116,8 @@ return view.extend({
         o = s.option(form.Button, 'install_singbox');
         o.inputtitle = _('Install');
         o.onclick = function (event) {
-            const version = document.querySelector('[data-widget-id="cbid.momo.singbox_update.singbox_version"] select')?.value ||
-                            document.querySelector('select[name="cbid.momo.singbox_update.singbox_version"]')?.value ||
+            const version = document.querySelector('[data-widget-id="cbid.momo.placeholder.singbox_version"] select')?.value ||
+                            document.querySelector('select[name="cbid.momo.placeholder.singbox_version"]')?.value ||
                             this.map.lookupOption('singbox_version', s.section)[0]?.formvalue(s.section);
 
             L.ui.showModal(_('Updating Sing-Box'), [ E('p', { class: 'spinning' }, _('Downloading and installing, please wait...')) ]);
