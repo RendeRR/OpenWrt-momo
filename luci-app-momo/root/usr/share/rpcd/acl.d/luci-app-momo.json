@@ -17,6 +17,9 @@
         },
         "write": {
             "uci": [ "momo" ],
+            "ubus": {
+                "luci.momo": [ "update_singbox" ]
+            },
             "file": {
                 "/etc/momo/profiles/*.json": ["write"],
                 "/etc/momo/subscriptions/*.json": ["write"],

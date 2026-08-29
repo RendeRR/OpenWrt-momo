@@ -23,7 +23,8 @@ return view.extend({
             uci.load('momo'),
             momo.version(),
             momo.status(),
-            momo.listProfiles()
+            momo.listProfiles(),
+            fetch('https://api.github.com/repos/SagerNet/sing-box/releases').then(res => res.json()).catch(() => [])
         ]);
     },
     render: function (data) {
@@ -32,6 +33,7 @@ return view.extend({
         const coreVersion = data[1].core ?? '';
         const running = data[2];
         const profiles = data[3];
+        const releases = data[4] || [];
 
         let m, s, o;
 
@@ -95,6 +97,45 @@ return view.extend({
         o.inputtitle = _('Open Sing-box Dashboard');
         o.onclick = function () {
             return momo.openSingboxDashboard();
+        };
+
+        s = m.section(form.TableSection, 'singbox_update', _('Sing-Box Update'));
+        s.anonymous = true;
+
+        o = s.option(form.ListValue, 'singbox_version');
+        o.optional = false;
+        if (Array.isArray(releases)) {
+            releases.forEach(r => {
+                if (r.tag_name) {
+                    o.value(r.tag_name);
+                }
+            });
+        }
+
+        o = s.option(form.Button, 'install_singbox');
+        o.inputtitle = _('Install');
+        o.onclick = function (event) {
+            const version = document.querySelector('[data-widget-id="cbid.momo.singbox_update.singbox_version"] select')?.value ||
+                            document.querySelector('select[name="cbid.momo.singbox_update.singbox_version"]')?.value ||
+                            this.map.lookupOption('singbox_version', s.section)[0]?.formvalue(s.section);
+
+            L.ui.showModal(_('Updating Sing-Box'), [ E('p', { class: 'spinning' }, _('Downloading and installing, please wait...')) ]);
+
+            return momo.updateSingbox(version).then((res) => {
+                L.ui.showModal(_('Updating Sing-Box'), [
+                    E('pre', { style: 'white-space: pre-wrap' }, res.result || res),
+                    E('div', { class: 'right' }, [
+                        E('button', { class: 'btn', click: L.ui.hideModal }, _('Close'))
+                    ])
+                ]);
+            }).catch((err) => {
+                L.ui.showModal(_('Updating Sing-Box'), [
+                    E('pre', { style: 'white-space: pre-wrap; color: red;' }, String(err)),
+                    E('div', { class: 'right' }, [
+                        E('button', { class: 'btn', click: L.ui.hideModal }, _('Close'))
+                    ])
+                ]);
+            });
         };
 
         s = m.section(form.NamedSection, 'config', 'config', _('App Config'));
