@@ -44,10 +44,16 @@ return view.extend({
         s.anonymous = true;
 
         o = s.option(form.DummyValue, '_app_version', _('App Version'));
-        o.cfgvalue = function () { return appVersion; };
+        o.width = '120px';
+        o.cfgvalue = function () {
+            return E('span', { style: 'white-space: nowrap;' }, appVersion);
+        };
 
         o = s.option(form.DummyValue, '_core_version', _('Core Version'));
-        o.cfgvalue = function () { return coreVersion; };
+        o.width = '150px';
+        o.cfgvalue = function () {
+            return E('span', { style: 'white-space: nowrap;' }, coreVersion);
+        };
 
         o = s.option(form.DummyValue, '_core_status', _('Core Status'));
         o.cfgvalue = function () {
