@@ -54,11 +54,9 @@ if (api_listen_str) {
     }
 }
 
-const profile = load_profile();
+config['services'] = [];
 
-if (type(profile['services']) != 'array') {
-    profile['services'] = [];
-}
+const profile = load_profile();
 
 if (api_listen && api_listen_port) {
     let api_service = {
@@ -81,7 +79,24 @@ if (api_listen && api_listen_port) {
         };
     }
 
-    push(profile['services'], api_service);
+    api_service = trim_all(api_service);
+
+    let existing_api_index = -1;
+
+    if (type(profile['services']) == 'array') {
+        for (let i = 0; i < length(profile['services']); i++) {
+            if (profile['services'][i]['type'] == 'api') {
+                existing_api_index = i;
+                break;
+            }
+        }
+    }
+
+    if (existing_api_index != -1) {
+        profile['services'][existing_api_index] = merge(profile['services'][existing_api_index], api_service);
+    } else {
+        push(config['services'], api_service);
+    }
 }
 
 save_profile(merge(profile, trim_all(config)));
