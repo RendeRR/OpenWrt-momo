@@ -123,7 +123,8 @@ return view.extend({
         o.inputstyle = 'action';
         o.inputtitle = _('Install');
         o.onclick = function (event, section_id) {
-            const version = this.map.lookupOption('singbox_version', section_id)[0]?.formvalue(section_id) || '';
+            const rawVersion = this.map.lookupOption('singbox_version', section_id)[0]?.formvalue(section_id) || '';
+            const version = rawVersion.replace(/^v/, '');
 
             ui.showModal(_('Updating Sing-Box'), [
                 E('p', { class: 'spinning' }, _('Downloading and installing, please wait...'))
