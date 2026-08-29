@@ -99,7 +99,8 @@ return view.extend({
             return momo.openSingboxDashboard();
         };
 
-        s = m.section(form.NamedSection, 'placeholder', 'placeholder', _('Sing-Box Update'));
+        s = m.section(form.TableSection, 'placeholder', _('Sing-Box Update'), _('The command curl -fsSL https://sing-box.app/install.sh | sh -s -- --version &lt;version&gt; will be executed.'));
+        s.anonymous = true;
 
         o = s.option(form.ListValue, 'singbox_version');
         o.optional = false;
@@ -114,6 +115,7 @@ return view.extend({
         }
 
         o = s.option(form.Button, 'install_singbox');
+        o.inputstyle = 'action';
         o.inputtitle = _('Install');
         o.onclick = function (event) {
             const version = document.querySelector('[data-widget-id="cbid.momo.placeholder.singbox_version"] select')?.value ||
