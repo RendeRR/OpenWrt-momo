@@ -128,6 +128,9 @@ return view.extend({
         o = s.option(form.Flag, 'test_profile', _('Test Profile'));
         o.rmempty = false;
 
+        o = s.option(form.Flag, 'format_profile', _('Format Profile'));
+        o.rmempty = false;
+
         o = s.option(form.Flag, 'core_only', _('Core Only'));
         o.rmempty = false;
 
