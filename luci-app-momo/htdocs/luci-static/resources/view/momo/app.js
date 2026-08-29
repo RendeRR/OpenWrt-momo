@@ -44,6 +44,7 @@ return view.extend({
 
         o = s.option(form.Value, '_app_version', _('App Version'));
         o.readonly = true;
+        o.width = '100px';
         o.load = function () {
             return appVersion;
         };
@@ -51,6 +52,8 @@ return view.extend({
 
         o = s.option(form.Value, '_core_version', _('Core Version'));
         o.readonly = true;
+        o.size = 15;
+        o.width = '150px';
         o.load = function () {
             return coreVersion;
         };
@@ -104,6 +107,7 @@ return view.extend({
 
         o = s.option(form.ListValue, 'singbox_version');
         o.optional = false;
+        o.width = '250px';
         o.load = function() { return ''; };
         o.write = function() {};
         if (Array.isArray(releases)) {
