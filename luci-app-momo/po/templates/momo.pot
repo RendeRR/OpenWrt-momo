@@ -683,7 +683,7 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
-msgid "The command curl -fsSL https://sing-box.app/install.sh | sh -s -- --version &lt;version&gt; will be executed."
+msgid "The command <code>curl -fsSL https://sing-box.app/install.sh | sh -s -- --version &lt;version&gt;</code> will be executed."
 msgstr ""
 
 msgid "Loading versions..."
