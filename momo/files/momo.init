@@ -113,6 +113,10 @@ start_service() {
 			log "App" "Exit."
 			return
 		fi
+		if [ "$format_profile" = 1 ]; then
+			log "Profile" "Formatting source profile..."
+			$PROG format -c "$profile_file" -w >> "$CORE_LOG_PATH" 2>&1
+		fi
 		cp -f "$profile_file" "$RUN_PROFILE_PATH"
 	elif [ "$profile_type" = "subscription" ]; then
 		local subscription_section; subscription_section="$profile_id"
@@ -129,6 +133,10 @@ start_service() {
 			log "App" "Exit."
 			return
 		fi
+		if [ "$format_profile" = 1 ]; then
+			log "Profile" "Formatting source subscription..."
+			$PROG format -c "$subscription_file" -w >> "$CORE_LOG_PATH" 2>&1
+		fi
 		cp -f "$subscription_file" "$RUN_PROFILE_PATH"
 	else
 		log "Profile" "No profile/subscription selected."
@@ -140,17 +148,15 @@ start_service() {
 		log "Mixin" "Mixin config."
 		ucode -S "$MIXIN_UC"
 	fi
-	# format profile
-	if [ "$format_profile" = 1 ]; then
-		log "Profile" "Formatting..."
-		if $PROG format -c "$RUN_PROFILE_PATH" -w >> "$CORE_LOG_PATH" 2>&1; then
-			log "Profile" "Format passed."
-		else
-			log "Profile" "Format failed."
-			log "Profile" "Please check the core log to find out the problem."
-			log "App" "Exit."
-			return
-		fi
+	# format run profile unconditionally
+	log "Profile" "Formatting run profile..."
+	if $PROG format -c "$RUN_PROFILE_PATH" -w >> "$CORE_LOG_PATH" 2>&1; then
+		log "Profile" "Format passed."
+	else
+		log "Profile" "Format failed."
+		log "Profile" "Please check the core log to find out the problem."
+		log "App" "Exit."
+		return
 	fi
 	# check profile
 	if [ "$core_only" = 0 ] && [ "$proxy_enabled" = 1 ]; then
