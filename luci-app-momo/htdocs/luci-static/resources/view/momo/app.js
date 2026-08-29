@@ -43,22 +43,11 @@ return view.extend({
         s = m.section(form.TableSection, 'placeholder', _('Status'));
         s.anonymous = true;
 
-        o = s.option(form.Value, '_app_version', _('App Version'));
-        o.readonly = true;
-        o.width = '100px';
-        o.load = function () {
-            return appVersion;
-        };
-        o.write = function () { };
+        o = s.option(form.DummyValue, '_app_version', _('App Version'));
+        o.cfgvalue = function () { return appVersion; };
 
-        o = s.option(form.Value, '_core_version', _('Core Version'));
-        o.readonly = true;
-        o.size = 15;
-        o.width = '150px';
-        o.load = function () {
-            return coreVersion;
-        };
-        o.write = function () { };
+        o = s.option(form.DummyValue, '_core_version', _('Core Version'));
+        o.cfgvalue = function () { return coreVersion; };
 
         o = s.option(form.DummyValue, '_core_status', _('Core Status'));
         o.cfgvalue = function () {
@@ -103,48 +92,48 @@ return view.extend({
             return momo.openSingboxDashboard();
         };
 
-        s = m.section(form.TableSection, 'placeholder', _('Sing-Box Update'), _('The command curl -fsSL https://sing-box.app/install.sh | sh -s -- --version &lt;version&gt; will be executed.'));
-        s.anonymous = true;
+        s = m.section(form.NamedSection, 'placeholder', 'placeholder', _('Sing-Box Update'), _('The command curl -fsSL https://sing-box.app/install.sh | sh -s -- --version &lt;version&gt; will be executed.'));
 
-        o = s.option(form.ListValue, 'singbox_version');
-        o.optional = false;
-        o.width = '250px';
-        o.load = function() { return ''; };
-        o.write = function() {};
-        if (Array.isArray(releases)) {
-            releases.forEach(r => {
-                if (r.tag_name) {
-                    o.value(r.tag_name);
+        o = s.option(form.DummyValue, '_update_widget', '');
+        o.renderWidget = function(section_id) {
+            let select = E('select', { id: 'singbox_version_select', style: 'width: 250px; margin-right: 10px;', class: 'cbi-input-select' });
+            if (Array.isArray(releases)) {
+                releases.forEach(r => {
+                    if (r.tag_name) {
+                        select.appendChild(E('option', { value: r.tag_name }, r.tag_name));
+                    }
+                });
+            }
+
+            let btn = E('button', {
+                class: 'cbi-button cbi-button-action',
+                click: function(ev) {
+                    const rawVersion = document.getElementById('singbox_version_select').value;
+                    const version = rawVersion.replace(/^v/, '');
+
+                    ui.showModal(_('Updating Sing-Box'), [
+                        E('p', { class: 'spinning' }, _('Downloading and installing, please wait...'))
+                    ]);
+
+                    return momo.updateSingbox(version).then((res) => {
+                        ui.showModal(_('Updating Sing-Box'), [
+                            E('pre', { style: 'white-space: pre-wrap' }, res.result || res),
+                            E('div', { class: 'right' }, [
+                                E('button', { class: 'btn', click: function() { ui.hideModal(); location.reload(); } }, _('Close'))
+                            ])
+                        ]);
+                    }).catch((err) => {
+                        ui.showModal(_('Updating Sing-Box'), [
+                            E('pre', { style: 'white-space: pre-wrap; color: red;' }, String(err)),
+                            E('div', { class: 'right' }, [
+                                E('button', { class: 'btn', click: function() { ui.hideModal(); location.reload(); } }, _('Close'))
+                            ])
+                        ]);
+                    });
                 }
-            });
-        }
+            }, _('Install'));
 
-        o = s.option(form.Button, 'install_singbox');
-        o.inputstyle = 'action';
-        o.inputtitle = _('Install');
-        o.onclick = function (event, section_id) {
-            const rawVersion = this.map.lookupOption('singbox_version', section_id)[0]?.formvalue(section_id) || '';
-            const version = rawVersion.replace(/^v/, '');
-
-            ui.showModal(_('Updating Sing-Box'), [
-                E('p', { class: 'spinning' }, _('Downloading and installing, please wait...'))
-            ]);
-
-            return momo.updateSingbox(version).then((res) => {
-                ui.showModal(_('Updating Sing-Box'), [
-                    E('pre', { style: 'white-space: pre-wrap' }, res.result || res),
-                    E('div', { class: 'right' }, [
-                        E('button', { class: 'btn', click: ui.hideModal }, _('Close'))
-                    ])
-                ]);
-            }).catch((err) => {
-                ui.showModal(_('Updating Sing-Box'), [
-                    E('pre', { style: 'white-space: pre-wrap; color: red;' }, String(err)),
-                    E('div', { class: 'right' }, [
-                        E('button', { class: 'btn', click: ui.hideModal }, _('Close'))
-                    ])
-                ]);
-            });
+            return E('div', { style: 'display: flex; align-items: center;' }, [ select, btn ]);
         };
 
         s = m.section(form.NamedSection, 'config', 'config', _('App Config'));
