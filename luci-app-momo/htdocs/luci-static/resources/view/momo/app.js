@@ -96,7 +96,7 @@ return view.extend({
             return momo.openSingboxDashboard();
         };
 
-        s = m.section(form.NamedSection, 'placeholder', 'placeholder', _('Sing-Box Update'), _('The command curl -fsSL https://sing-box.app/install.sh | sh -s -- --version &lt;version&gt; will be executed.'));
+        s = m.section(form.NamedSection, 'placeholder', 'placeholder', _('Sing-Box Update'), _('The command <code>curl -fsSL https://sing-box.app/install.sh | sh -s -- --version &lt;version&gt;</code> will be executed.'));
 
         o = s.option(form.DummyValue, '_update_widget', '');
         o.renderWidget = function(section_id) {
