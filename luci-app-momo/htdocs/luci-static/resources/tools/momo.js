@@ -151,6 +151,26 @@ return baseclass.extend({
         return Promise.resolve();
     },
 
+    openSingboxDashboard: async function () {
+        const profile = await callMomoProfile({ 'services': [{ 'type': 'api', 'listen_port': null, 'secret': null }] });
+        const apiService = profile?.['services']?.find(s => s.type === 'api');
+        const apiPort = apiService?.['listen_port'];
+        const apiSecret = apiService?.['secret'] ?? '';
+        if (!apiPort) {
+            return Promise.reject('sing-box API has not been configured');
+        }
+        const params = {
+            host: window.location.hostname,
+            hostname: window.location.hostname,
+            port: apiPort,
+            secret: apiSecret
+        };
+        const query = new URLSearchParams(params).toString();
+        const url = `http://${window.location.hostname}:${apiPort}/dashboard/?${query}`;
+        setTimeout(function () { window.open(url, '_blank') }, 0);
+        return Promise.resolve();
+    },
+
     getIdentifiers: function () {
         return callMomoGetIdentifiers();
     },

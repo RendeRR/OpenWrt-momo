@@ -43,6 +43,30 @@ config['experimental']['clash_api']['external_ui_download_url'] = uci.get('momo'
 config['experimental']['clash_api']['external_controller'] = uci.get('momo', 'mixin', 'external_control_api_listen');
 config['experimental']['clash_api']['secret'] = uci.get('momo', 'mixin', 'external_control_api_secret');
 
+let api_listen_str = uci.get('momo', 'mixin', 'singbox_api_listen') ?? '';
+let api_listen = '';
+let api_listen_port = 0;
+if (api_listen_str) {
+    let colon_idx = rindex(api_listen_str, ':');
+    if (colon_idx != -1) {
+        api_listen = substr(api_listen_str, 0, colon_idx);
+        api_listen_port = +substr(api_listen_str, colon_idx + 1);
+    }
+}
+
+config['services'] = [];
+push(config['services'], {
+    "type": "api",
+    "listen": api_listen,
+    "listen_port": api_listen_port,
+    "secret": uci.get('momo', 'mixin', 'singbox_api_secret'),
+    "dashboard": {
+        "enabled": true,
+        "path": uci.get('momo', 'mixin', 'singbox_api_ui_path'),
+        "download_url": uci.get('momo', 'mixin', 'singbox_api_ui_download_url')
+    }
+});
+
 const profile = load_profile();
 
 save_profile(merge(profile, trim_all(config)));

@@ -637,3 +637,21 @@ msgstr ""
 #: applications/luci-app-momo/htdocs/luci-static/resources/view/momo/app.js:128
 msgid "procd Config"
 msgstr ""
+
+msgid "sing-box API Config"
+msgstr ""
+
+msgid "Open sing-box Dashboard"
+msgstr ""
+
+msgid "UI Path"
+msgstr ""
+
+msgid "UI Download Url"
+msgstr ""
+
+msgid "API Listen"
+msgstr ""
+
+msgid "API Secret"
+msgstr ""

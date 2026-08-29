@@ -149,6 +149,22 @@ return view.extend({
         o.password = true;
         o.placeholder = _('Unmodified');
 
+        s.tab('singbox_api', _('sing-box API Config'));
+
+        o = s.taboption('singbox_api', form.Value, 'singbox_api_ui_path', _('UI Path'));
+        o.placeholder = _('Unmodified');
+
+        o = s.taboption('singbox_api', form.Value, 'singbox_api_ui_download_url', _('UI Download Url'));
+        o.placeholder = _('Unmodified');
+
+        o = s.taboption('singbox_api', form.Value, 'singbox_api_listen', _('API Listen'));
+        o.datatype = 'ipaddrport(1)';
+        o.placeholder = _('Unmodified');
+
+        o = s.taboption('singbox_api', form.Value, 'singbox_api_secret', _('API Secret'));
+        o.password = true;
+        o.placeholder = _('Unmodified');
+
         return m.render();
     }
 });

@@ -91,6 +91,12 @@ return view.extend({
             return momo.openDashboard();
         };
 
+        o = s.option(form.Button, 'open_singbox_dashboard');
+        o.inputtitle = _('Open sing-box Dashboard');
+        o.onclick = function () {
+            return momo.openSingboxDashboard();
+        };
+
         s = m.section(form.NamedSection, 'config', 'config', _('App Config'));
 
         o = s.option(form.Flag, 'enabled', _('Enable'));
