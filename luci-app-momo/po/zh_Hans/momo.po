@@ -645,10 +645,10 @@ msgstr "用户代理（UA）"
 msgid "procd Config"
 msgstr "procd 配置"
 
-msgid "sing-box API Config"
+msgid "Sing-box API Config"
 msgstr "sing-box API 配置"
 
-msgid "Open sing-box Dashboard"
+msgid "Open Sing-box Dashboard"
 msgstr "打开 sing-box 面板"
 
 msgid "UI Path"

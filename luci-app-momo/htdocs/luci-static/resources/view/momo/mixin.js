@@ -151,7 +151,7 @@ return view.extend({
         o.placeholder = _('Unmodified');
         o.autocomplete = 'new-password';
 
-        s.tab('singbox_api', _('sing-box API Config'));
+        s.tab('singbox_api', _('Sing-box API Config'));
 
         o = s.taboption('singbox_api', form.Value, 'singbox_api_ui_path', _('UI Path'));
         o.placeholder = _('Unmodified');
