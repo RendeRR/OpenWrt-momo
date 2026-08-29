@@ -667,3 +667,18 @@ msgstr ""
 
 msgid "Format Profile"
 msgstr ""
+
+msgid "Sing-Box Update"
+msgstr ""
+
+msgid "Install"
+msgstr ""
+
+msgid "Updating Sing-Box"
+msgstr ""
+
+msgid "Downloading and installing, please wait..."
+msgstr ""
+
+msgid "Close"
+msgstr ""

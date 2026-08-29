@@ -44,6 +44,13 @@ const callMomoProfile = rpc.declare({
     expect: { '': {} }
 });
 
+const callMomoUpdateSingbox = rpc.declare({
+    object: 'luci.momo',
+    method: 'update_singbox',
+    params: ['version'],
+    expect: { '': {} }
+});
+
 const callMomoUpdateSubscription = rpc.declare({
     object: 'luci.momo',
     method: 'update_subscription',
@@ -121,6 +128,10 @@ return baseclass.extend({
 
     profile: function (defaults) {
         return callMomoProfile(defaults);
+    },
+
+    updateSingbox: function (version) {
+        return callMomoUpdateSingbox(version);
     },
 
     updateSubscription: function (section_id) {

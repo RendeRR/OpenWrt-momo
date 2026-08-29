@@ -674,3 +674,18 @@ msgstr "私钥路径"
 
 msgid "Format Profile"
 msgstr "格式化配置文件"
+
+msgid "Sing-Box Update"
+msgstr "Sing-Box 更新"
+
+msgid "Install"
+msgstr "安装"
+
+msgid "Updating Sing-Box"
+msgstr "正在更新 Sing-Box"
+
+msgid "Downloading and installing, please wait..."
+msgstr "正在下载和安装，请稍候..."
+
+msgid "Close"
+msgstr "关闭"
