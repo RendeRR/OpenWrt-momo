@@ -152,7 +152,7 @@ return baseclass.extend({
     },
 
     openSingboxDashboard: async function () {
-        const profile = await callMomoProfile({ 'services': [{ 'type': 'api', 'listen_port': null, 'secret': null, 'tls': null, 'dashboard': null }] });
+        const profile = await callMomoProfile({ 'services': [] });
         const apiService = profile?.['services']?.find(s => s.type === 'api');
         const apiPort = apiService?.['listen_port'];
         const apiSecret = apiService?.['secret'] ?? '';

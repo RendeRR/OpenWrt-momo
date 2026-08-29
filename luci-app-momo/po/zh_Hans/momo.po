@@ -671,3 +671,6 @@ msgstr "证书路径"
 
 msgid "Key Path"
 msgstr "私钥路径"
+
+msgid "Format Profile"
+msgstr "格式化配置文件"

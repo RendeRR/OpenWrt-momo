@@ -54,7 +54,12 @@ if (api_listen_str) {
     }
 }
 
-config['services'] = [];
+const profile = load_profile();
+
+if (type(profile['services']) != 'array') {
+    profile['services'] = [];
+}
+
 let api_service = {
     "type": "api",
     "listen": api_listen,
@@ -75,8 +80,6 @@ if (uci_bool(uci.get('momo', 'mixin', 'singbox_api_tls_enabled'))) {
     };
 }
 
-push(config['services'], api_service);
-
-const profile = load_profile();
+push(profile['services'], api_service);
 
 save_profile(merge(profile, trim_all(config)));

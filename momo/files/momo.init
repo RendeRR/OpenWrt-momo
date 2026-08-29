@@ -56,11 +56,12 @@ start_service() {
 	fi
 	# get config
 	## app config
-	local scheduled_restart scheduled_restart_cron profile test_profile core_only
+	local scheduled_restart scheduled_restart_cron profile test_profile format_profile core_only
 	config_get_bool scheduled_restart "config" "scheduled_restart" 0
 	config_get scheduled_restart_cron "config" "scheduled_restart_cron"
 	config_get profile "config" "profile"
 	config_get_bool test_profile "config" "test_profile" 0
+	config_get_bool format_profile "config" "format_profile" 0
 	config_get_bool core_only "config" "core_only" 0
 	## procd config
 	### general
@@ -140,7 +141,17 @@ start_service() {
 		ucode -S "$MIXIN_UC"
 	fi
 	# format profile
-	$PROG -c "$RUN_PROFILE_PATH" format -w
+	if [ "$format_profile" = 1 ]; then
+		log "Profile" "Formatting..."
+		if $PROG format -c "$RUN_PROFILE_PATH" -w >> "$CORE_LOG_PATH" 2>&1; then
+			log "Profile" "Format passed."
+		else
+			log "Profile" "Format failed."
+			log "Profile" "Please check the core log to find out the problem."
+			log "App" "Exit."
+			return
+		fi
+	fi
 	# check profile
 	if [ "$core_only" = 0 ] && [ "$proxy_enabled" = 1 ]; then
 		log "Profile" "Checking..."
