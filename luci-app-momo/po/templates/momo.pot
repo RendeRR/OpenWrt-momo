@@ -685,3 +685,12 @@ msgstr ""
 
 msgid "The command curl -fsSL https://sing-box.app/install.sh | sh -s -- --version &lt;version&gt; will be executed."
 msgstr ""
+
+msgid "Loading versions..."
+msgstr ""
+
+msgid "No versions found"
+msgstr ""
+
+msgid "Failed to load versions"
+msgstr ""

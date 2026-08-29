@@ -24,8 +24,7 @@ return view.extend({
             uci.load('momo'),
             momo.version(),
             momo.status(),
-            momo.listProfiles(),
-            fetch('https://api.github.com/repos/SagerNet/sing-box/releases').then(res => res.json()).catch(() => [])
+            momo.listProfiles()
         ]);
     },
     render: function (data) {
@@ -34,7 +33,6 @@ return view.extend({
         const coreVersion = data[1].core ?? '';
         const running = data[2];
         const profiles = data[3];
-        const releases = data[4] || [];
 
         let m, s, o;
 
@@ -102,14 +100,28 @@ return view.extend({
 
         o = s.option(form.DummyValue, '_update_widget', '');
         o.renderWidget = function(section_id) {
-            let select = E('select', { id: 'singbox_version_select', style: 'width: 250px; margin-right: 10px;', class: 'cbi-input-select' });
-            if (Array.isArray(releases)) {
-                releases.forEach(r => {
-                    if (r.tag_name) {
-                        select.appendChild(E('option', { value: r.tag_name }, r.tag_name));
+            let select = E('select', { id: 'singbox_version_select', style: 'width: 250px; margin-right: 10px;', class: 'cbi-input-select' }, [
+                E('option', { value: '' }, _('Loading versions...'))
+            ]);
+
+            fetch('https://api.github.com/repos/SagerNet/sing-box/releases')
+                .then(res => res.json())
+                .then(releases => {
+                    select.innerHTML = '';
+                    if (Array.isArray(releases) && releases.length > 0) {
+                        releases.forEach(r => {
+                            if (r.tag_name) {
+                                select.appendChild(E('option', { value: r.tag_name }, r.tag_name));
+                            }
+                        });
+                    } else {
+                        select.appendChild(E('option', { value: '' }, _('No versions found')));
                     }
+                })
+                .catch(() => {
+                    select.innerHTML = '';
+                    select.appendChild(E('option', { value: '' }, _('Failed to load versions')));
                 });
-            }
 
             let btn = E('button', {
                 class: 'cbi-button cbi-button-action',
