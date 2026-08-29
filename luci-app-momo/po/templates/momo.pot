@@ -638,10 +638,10 @@ msgstr ""
 msgid "procd Config"
 msgstr ""
 
-msgid "sing-box API Config"
+msgid "Sing-box API Config"
 msgstr ""
 
-msgid "Open sing-box Dashboard"
+msgid "Open Sing-box Dashboard"
 msgstr ""
 
 msgid "UI Path"

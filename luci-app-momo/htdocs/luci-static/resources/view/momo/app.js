@@ -92,7 +92,7 @@ return view.extend({
         };
 
         o = s.option(form.Button, 'open_singbox_dashboard');
-        o.inputtitle = _('Open sing-box Dashboard');
+        o.inputtitle = _('Open Sing-box Dashboard');
         o.onclick = function () {
             return momo.openSingboxDashboard();
         };
