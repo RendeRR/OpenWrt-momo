@@ -644,3 +644,30 @@ msgstr "用户代理（UA）"
 #: applications/luci-app-momo/htdocs/luci-static/resources/view/momo/app.js:128
 msgid "procd Config"
 msgstr "procd 配置"
+
+msgid "sing-box API Config"
+msgstr "sing-box API 配置"
+
+msgid "Open sing-box Dashboard"
+msgstr "打开 sing-box 面板"
+
+msgid "UI Path"
+msgstr "UI 路径"
+
+msgid "UI Download Url"
+msgstr "UI 下载地址"
+
+msgid "API Listen"
+msgstr "API 监听地址"
+
+msgid "API Secret"
+msgstr "API 密钥"
+
+msgid "Enable TLS"
+msgstr "启用 TLS"
+
+msgid "Certificate Path"
+msgstr "证书路径"
+
+msgid "Key Path"
+msgstr "私钥路径"
