@@ -173,11 +173,11 @@ return view.extend({
         o.rmempty = false;
 
         o = s.taboption('singbox_api', form.Value, 'singbox_api_tls_cert_path', _('Certificate Path'));
-        o.placeholder = '/etc/ssl/acme/luci.rinat.top.fullchain.crt';
+        o.placeholder = '/etc/ssl/acme/example.com.fullchain.crt';
         o.depends('singbox_api_tls_enabled', '1');
 
         o = s.taboption('singbox_api', form.Value, 'singbox_api_tls_key_path', _('Key Path'));
-        o.placeholder = '/etc/ssl/acme/luci.rinat.top.key';
+        o.placeholder = '/etc/ssl/acme/example.com.key';
         o.depends('singbox_api_tls_enabled', '1');
 
         return m.render();
