@@ -59,42 +59,66 @@ config['services'] = [];
 const profile = load_profile();
 
 if (api_listen && api_listen_port) {
-    let api_service = {
-        "type": "api",
-        "listen": api_listen,
-        "listen_port": api_listen_port,
-        "secret": uci.get('momo', 'mixin', 'singbox_api_secret'),
-        "dashboard": {
-            "enabled": true,
-            "path": uci.get('momo', 'mixin', 'singbox_api_ui_path'),
-            "download_url": uci.get('momo', 'mixin', 'singbox_api_ui_download_url')
-        }
-    };
+    let secret = uci.get('momo', 'mixin', 'singbox_api_secret');
+    let dash_path = uci.get('momo', 'mixin', 'singbox_api_ui_path');
+    let dash_url = uci.get('momo', 'mixin', 'singbox_api_ui_download_url');
+    let tls_enabled = uci_bool(uci.get('momo', 'mixin', 'singbox_api_tls_enabled'));
+    let tls_cert = uci.get('momo', 'mixin', 'singbox_api_tls_cert_path');
+    let tls_key = uci.get('momo', 'mixin', 'singbox_api_tls_key_path');
 
-    if (uci_bool(uci.get('momo', 'mixin', 'singbox_api_tls_enabled'))) {
-        api_service["tls"] = {
-            "enabled": true,
-            "certificate_path": uci.get('momo', 'mixin', 'singbox_api_tls_cert_path'),
-            "key_path": uci.get('momo', 'mixin', 'singbox_api_tls_key_path')
-        };
-    }
-
-    api_service = trim_all(api_service);
-
-    let existing_api_index = -1;
+    let found = false;
 
     if (type(profile['services']) == 'array') {
         for (let i = 0; i < length(profile['services']); i++) {
             if (profile['services'][i]['type'] == 'api') {
-                existing_api_index = i;
+                found = true;
+                profile['services'][i]['listen'] = api_listen;
+                profile['services'][i]['listen_port'] = api_listen_port;
+
+                if (secret) profile['services'][i]['secret'] = secret;
+                else delete profile['services'][i]['secret'];
+
+                if (type(profile['services'][i]['dashboard']) != 'object') profile['services'][i]['dashboard'] = {};
+                profile['services'][i]['dashboard']['enabled'] = true;
+
+                if (dash_path) profile['services'][i]['dashboard']['path'] = dash_path;
+                else delete profile['services'][i]['dashboard']['path'];
+
+                if (dash_url) profile['services'][i]['dashboard']['download_url'] = dash_url;
+                else delete profile['services'][i]['dashboard']['download_url'];
+
+                if (tls_enabled) {
+                    if (type(profile['services'][i]['tls']) != 'object') profile['services'][i]['tls'] = {};
+                    profile['services'][i]['tls']['enabled'] = true;
+                    if (tls_cert) profile['services'][i]['tls']['certificate_path'] = tls_cert;
+                    if (tls_key) profile['services'][i]['tls']['key_path'] = tls_key;
+                } else {
+                    delete profile['services'][i]['tls'];
+                }
                 break;
             }
         }
     }
 
-    if (existing_api_index != -1) {
-        profile['services'][existing_api_index] = merge(profile['services'][existing_api_index], api_service);
-    } else {
+    if (!found) {
+        let api_service = {
+            "type": "api",
+            "listen": api_listen,
+            "listen_port": api_listen_port
+        };
+
+        if (secret) api_service["secret"] = secret;
+
+        api_service["dashboard"] = { "enabled": true };
+        if (dash_path) api_service["dashboard"]["path"] = dash_path;
+        if (dash_url) api_service["dashboard"]["download_url"] = dash_url;
+
+        if (tls_enabled) {
+            api_service["tls"] = { "enabled": true };
+            if (tls_cert) api_service["tls"]["certificate_path"] = tls_cert;
+            if (tls_key) api_service["tls"]["key_path"] = tls_key;
+        }
+
         push(config['services'], api_service);
     }
 }
