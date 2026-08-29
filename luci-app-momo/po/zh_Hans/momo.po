@@ -692,3 +692,12 @@ msgstr "关闭"
 
 msgid "The command curl -fsSL https://sing-box.app/install.sh | sh -s -- --version &lt;version&gt; will be executed."
 msgstr "将执行命令 curl -fsSL https://sing-box.app/install.sh | sh -s -- --version &lt;version&gt; 。"
+
+msgid "Loading versions..."
+msgstr "正在加载版本..."
+
+msgid "No versions found"
+msgstr "未找到版本"
+
+msgid "Failed to load versions"
+msgstr "加载版本失败"
