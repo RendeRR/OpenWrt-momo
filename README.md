@@ -15,6 +15,41 @@ Additions on top of the original [OpenWrt-momo](https://github.com/nikkinikki-or
 </tr>
 </table>
 
+## Installation
+ 
+There are no ready-made builds (packages) for this fork yet. To get the changed files, download and run the script below on your router — it pulls the necessary files straight from the fork's repository and restarts the services.
+ 
+```sh
+#!/bin/sh
+# Base URL of your fork
+RAW_URL="https://raw.githubusercontent.com/RendeRR/OpenWrt-momo/main"
+
+echo "Downloading Frontend (LuCI)..."
+wget -qO /www/luci-static/resources/view/momo/app.js "$RAW_URL/luci-app-momo/htdocs/luci-static/resources/view/momo/app.js"
+wget -qO /www/luci-static/resources/view/momo/mixin.js "$RAW_URL/luci-app-momo/htdocs/luci-static/resources/view/momo/mixin.js"
+wget -qO /www/luci-static/resources/tools/momo.js "$RAW_URL/luci-app-momo/htdocs/luci-static/resources/tools/momo.js"
+
+echo "Downloading Backend (ucode)..."
+wget -qO /etc/momo/ucode/mixin.uc "$RAW_URL/momo/files/ucode/mixin.uc"
+
+echo "Downloading RPC (backend for the Sing-Box updater)..."
+wget -qO /usr/share/rpcd/ucode/luci.momo "$RAW_URL/luci-app-momo/root/usr/share/rpcd/ucode/luci.momo"
+wget -qO /usr/share/rpcd/acl.d/luci-app-momo.json "$RAW_URL/luci-app-momo/root/usr/share/rpcd/acl.d/luci-app-momo.json"
+
+echo "Downloading the init script..."
+wget -qO /etc/init.d/momo "$RAW_URL/momo/files/momo.init"
+chmod +x /etc/init.d/momo
+
+echo "Clearing the LuCI cache and restarting services..."
+rm -rf /tmp/luci-*
+/etc/init.d/rpcd restart
+/etc/init.d/momo restart
+
+echo "Done! Refresh the admin panel with a hard reload (Cmd + Shift + R)."
+```
+ 
+Tested on Momo v1.2.1.
+ 
 ## A separate dashboard for the sing-box API
  
 Previously, the only "Open Dashboard" button opened a web panel that worked exclusively through the Clash-compatible API. If that API was disabled in settings, there was no dashboard to open at all.
@@ -36,6 +71,7 @@ The final check before startup is also more reliable now: previously the app for
 ## Small stuff
  
 The "App Version" and "Core Version" fields on the status page now display more neatly — no more line wrapping.
+
 # Momo
 
 Transparent Proxy with sing-box on OpenWrt.
