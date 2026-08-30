@@ -6,6 +6,15 @@ English | [中文](README.zh.md)
  
 Additions on top of the original [OpenWrt-momo](https://github.com/nikkinikki-org/OpenWrt-momo) package — the web interface and service for transparent proxying via sing-box.
  
+## Screenshots
+ 
+<table>
+<tr>
+<td width="50%" valign="bottom"><img src="images/singbox-api-config.png" alt="Sing-box API Config settings"><br><sub>The Sing-box API Config tab in Mixin settings</sub></td>
+<td width="50%" valign="bottom"><img src="images/app-status.png" alt="Open Sing-box Dashboard button and the update block"><br><sub>The new buttons and Sing-Box Update block on the app page</sub></td>
+</tr>
+</table>
+
 ## A separate dashboard for the sing-box API
  
 Previously, the only "Open Dashboard" button opened a web panel that worked exclusively through the Clash-compatible API. If that API was disabled in settings, there was no dashboard to open at all.
@@ -27,7 +36,6 @@ The final check before startup is also more reliable now: previously the app for
 ## Small stuff
  
 The "App Version" and "Core Version" fields on the status page now display more neatly — no more line wrapping.
-
 # Momo
 
 Transparent Proxy with sing-box on OpenWrt.
