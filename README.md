@@ -2,6 +2,32 @@
 
 English | [中文](README.zh.md)
 
+# What's new in this fork
+ 
+Additions on top of the original [OpenWrt-momo](https://github.com/nikkinikki-org/OpenWrt-momo) package — the web interface and service for transparent proxying via sing-box.
+ 
+## A separate dashboard for the sing-box API
+ 
+Previously, the only "Open Dashboard" button opened a web panel that worked exclusively through the Clash-compatible API. If that API was disabled in settings, there was no dashboard to open at all.
+ 
+The Mixin settings now include a separate **Sing-box API Config** tab, where you can independently configure sing-box's own native API: listen address and port, access password, the web UI path and download URL, plus HTTPS with your own certificate and key.
+ 
+A new button has appeared on the app's main page next to the old one — **Open Sing-box Dashboard**. It opens this dashboard in a new browser tab, automatically filling in the right address, port, and password.
+ 
+## Updating the sing-box core from the web interface
+ 
+A new **Sing-Box Update** block has appeared on the app page. The list of available sing-box versions is fetched directly from GitHub — just pick a version from the dropdown and click "Install". Downloading and installing happen without SSHing into the router, and the result is shown in a popup.
+ 
+## Checking the profile before startup
+ 
+A new **Format Profile** setting lets you validate and normalize the source profile (or subscription) before your own mixin settings are applied to it — helping catch config errors earlier.
+ 
+The final check before startup is also more reliable now: previously the app formatted the final config without checking whether that succeeded, and on error it could still try to start with a broken profile. Now, if formatting fails, startup stops cleanly and the reason is logged.
+ 
+## Small stuff
+ 
+The "App Version" and "Core Version" fields on the status page now display more neatly — no more line wrapping.
+
 # Momo
 
 Transparent Proxy with sing-box on OpenWrt.
