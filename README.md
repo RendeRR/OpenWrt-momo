@@ -10,11 +10,9 @@ Additions on top of the original [OpenWrt-momo](https://github.com/nikkinikki-or
  
 <table>
 <tr>
-<td width="50%" valign="bottom"><img src="images/singbox-api-config.png" alt="Sing-box API Config settings"><br><sub>The Sing-box API Config tab in Mixin settings</sub></td>
-<td width="50%" valign="bottom"><img src="images/app-status.png" alt="Open Sing-box Dashboard button and the update block"><br><sub>The new buttons and Sing-Box Update block on the app page</sub></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><img src="images/singbox-update-log.png" alt="Sing-Box update window with install log" width="50%"><br><sub>The sing-box update progress in the popup window</sub></td>
+<td width="33%" valign="bottom"><img src="images/singbox-api-config.png" alt="Sing-box API Config settings"><br><sub>Sing-box API Config tab in Mixin settings</sub></td>
+<td width="33%" valign="bottom"><img src="images/app-status.png" alt="Open Sing-box Dashboard button and the update block"><br><sub>New buttons and Sing-Box Update block</sub></td>
+<td width="33%" valign="bottom"><img src="images/singbox-update-log.png" alt="Sing-Box update window with install log"><br><sub>Sing-box update progress in the popup window</sub></td>
 </tr>
 </table>
 
