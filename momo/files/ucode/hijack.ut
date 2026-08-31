@@ -106,8 +106,8 @@
 
 	const reserved_ip = uci_array(uci.get('momo', 'proxy', 'reserved_ip'));
 	const reserved_ip6 = uci_array(uci.get('momo', 'proxy', 'reserved_ip6'));
-	const bypass_custom_ip = uci_array(uci.get('momo', 'proxy', 'bypass_custom_ip'));
-	const bypass_custom_ip6 = uci_array(uci.get('momo', 'proxy', 'bypass_custom_ip6'));
+	const bypass_custom_ip = filter(uci_array(uci.get('momo', 'proxy', 'bypass_custom_ip')), (x) => x != '');
+	const bypass_custom_ip6 = filter(uci_array(uci.get('momo', 'proxy', 'bypass_custom_ip6')), (x) => x != '');
 	const bypass_china_mainland_ip = uci_bool(uci.get('momo', 'proxy', 'bypass_china_mainland_ip'));
 	const bypass_china_mainland_ip6 = uci_bool(uci.get('momo', 'proxy', 'bypass_china_mainland_ip6'));
 	const proxy_tcp_dport = split((uci.get('momo', 'proxy', 'proxy_tcp_dport') ?? '0-65535'), ' ');
