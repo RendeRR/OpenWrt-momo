@@ -204,6 +204,24 @@ table inet momo {
 		{% endif %}
 	}
 
+	set bypass_custom_ip {
+		type ipv4_addr
+		flags interval
+		auto-merge
+		{% if (length(bypass_custom_ip) > 0): %}
+		elements = { {{ join(', ', bypass_custom_ip) }} }
+		{% endif %}
+	}
+
+	set bypass_custom_ip6 {
+		type ipv6_addr
+		flags interval
+		auto-merge
+		{% if (length(bypass_custom_ip6) > 0): %}
+		elements = { {{ join(', ', bypass_custom_ip6) }} }
+		{% endif %}
+	}
+
 	set lan_inbound_device {
 		type ifname
 		flags interval
@@ -507,12 +525,8 @@ table inet momo {
 		ct direction reply counter return
 		ip daddr @reserved_ip {% if (fake_ip_range): %} ip daddr != {{ fake_ip_range }} {% endif %} counter return
 		ip6 daddr @reserved_ip6 {% if (fake_ip6_range): %} ip6 daddr != {{ fake_ip6_range }} {% endif %} counter return
-		{% if (length(bypass_custom_ip) > 0): %}
-		ip daddr { {{ join(', ', bypass_custom_ip) }} } counter return
-		{% endif %}
-		{% if (length(bypass_custom_ip6) > 0): %}
-		ip6 daddr { {{ join(', ', bypass_custom_ip6) }} } counter return
-		{% endif %}
+		ip daddr @bypass_custom_ip counter return
+		ip6 daddr @bypass_custom_ip6 counter return
 		ip daddr @china_ip counter return
 		ip6 daddr @china_ip6 counter return
 		meta nfproto ipv4 meta l4proto . th dport != @proxy_dport {% if (fake_ip_range): %} ip daddr != {{ fake_ip_range }} {% endif %} counter return
@@ -545,12 +559,8 @@ table inet momo {
 		ct direction reply counter return
 		ip daddr @reserved_ip {% if (fake_ip_range): %} ip daddr != {{ fake_ip_range }} {% endif %} counter return
 		ip6 daddr @reserved_ip6 {% if (fake_ip6_range): %} ip6 daddr != {{ fake_ip6_range }} {% endif %} counter return
-		{% if (length(bypass_custom_ip) > 0): %}
-		ip daddr { {{ join(', ', bypass_custom_ip) }} } counter return
-		{% endif %}
-		{% if (length(bypass_custom_ip6) > 0): %}
-		ip6 daddr { {{ join(', ', bypass_custom_ip6) }} } counter return
-		{% endif %}
+		ip daddr @bypass_custom_ip counter return
+		ip6 daddr @bypass_custom_ip6 counter return
 		ip daddr @china_ip counter return
 		ip6 daddr @china_ip6 counter return
 		meta nfproto ipv4 meta l4proto . th dport != @proxy_dport {% if (fake_ip_range): %} ip daddr != {{ fake_ip_range }} {% endif %} counter return
@@ -585,12 +595,8 @@ table inet momo {
 		ct direction reply counter return
 		ip daddr @reserved_ip {% if (fake_ip_range): %} ip daddr != {{ fake_ip_range }} {% endif %} counter return
 		ip6 daddr @reserved_ip6 {% if (fake_ip6_range): %} ip6 daddr != {{ fake_ip6_range }} {% endif %} counter return
-		{% if (length(bypass_custom_ip) > 0): %}
-		ip daddr { {{ join(', ', bypass_custom_ip) }} } counter return
-		{% endif %}
-		{% if (length(bypass_custom_ip6) > 0): %}
-		ip6 daddr { {{ join(', ', bypass_custom_ip6) }} } counter return
-		{% endif %}
+		ip daddr @bypass_custom_ip counter return
+		ip6 daddr @bypass_custom_ip6 counter return
 		ip daddr @china_ip counter return
 		ip6 daddr @china_ip6 counter return
 		meta nfproto ipv4 meta l4proto . th dport != @proxy_dport {% if (fake_ip_range): %} ip daddr != {{ fake_ip_range }} {% endif %} counter return
@@ -618,12 +624,8 @@ table inet momo {
 		ct direction reply counter return
 		ip daddr @reserved_ip {% if (fake_ip_range): %} ip daddr != {{ fake_ip_range }} {% endif %} counter return
 		ip6 daddr @reserved_ip6 {% if (fake_ip6_range): %} ip6 daddr != {{ fake_ip6_range }} {% endif %} counter return
-		{% if (length(bypass_custom_ip) > 0): %}
-		ip daddr { {{ join(', ', bypass_custom_ip) }} } counter return
-		{% endif %}
-		{% if (length(bypass_custom_ip6) > 0): %}
-		ip6 daddr { {{ join(', ', bypass_custom_ip6) }} } counter return
-		{% endif %}
+		ip daddr @bypass_custom_ip counter return
+		ip6 daddr @bypass_custom_ip6 counter return
 		ip daddr @china_ip counter return
 		ip6 daddr @china_ip6 counter return
 		meta nfproto ipv4 meta l4proto . th dport != @proxy_dport {% if (fake_ip_range): %} ip daddr != {{ fake_ip_range }} {% endif %} counter return
