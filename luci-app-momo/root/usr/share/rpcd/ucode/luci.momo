@@ -61,7 +61,7 @@ const methods = {
 		call: function(req) {
 			const version = req.args?.version;
 			if (!version || !match(version, /^[a-zA-Z0-9._-]+$/)) return { result: "Invalid version specified" };
-			const process = popen(`curl -fsSL https://sing-box.app/install.sh | sh -s -- --version ` + version + ` 2>&1`);
+			const process = popen(`{ curl -fsSL https://sing-box.app/install.sh | sh -s -- --version ` + version + ` && /etc/init.d/momo restart; } 2>&1`);
 			let output = '';
 			if (process) {
 				output = process.read('all');
