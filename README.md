@@ -6,10 +6,20 @@ Additions on top of the original [OpenWrt-momo](https://github.com/nikkinikki-or
 
 <table>
 <tr>
-<td width="25%" valign="bottom"><img src="images/singbox-api-config.png" alt="Sing-box API Config settings"><br><sub>Sing-box API Config tab in Mixin settings</sub></td>
-<td width="25%" valign="bottom"><img src="images/app-status.png" alt="Open Sing-box Dashboard button and the update block"><br><sub>New buttons and Sing-Box Update block</sub></td>
-<td width="25%" valign="bottom"><img src="images/singbox-update-log.png" alt="Sing-Box update window with install log"><br><sub>Sing-box update progress</sub></td>
-<td width="25%" valign="bottom"><img src="images/custom-direct-bypass.png" alt="Custom direct bypass"><br><sub>Custom direct bypass</sub></td>
+<td width="50%" valign="center" align="center"><img src="images/singbox-api-config.png" alt="Sing-box API Config settings"></td>
+<td width="50%" valign="center" align="center"><img src="images/app-status.png" alt="Open Sing-box Dashboard button and the update block"></td>
+</tr>
+<tr>
+<td width="50%" valign="center" align="center"><sub>Sing-box API Config tab in Mixin settings</sub></td>
+<td width="50%" valign="center" align="center"><sub>New buttons and Sing-Box Update block</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="center" align="center"><img src="images/singbox-update-log.png" alt="Sing-Box update window with install log"></td>
+<td width="50%" valign="center" align="center"><img src="images/custom-direct-bypass.png" alt="Custom direct bypass"></td>
+</tr>
+<tr>
+<td width="50%" valign="center" align="center"><sub>Sing-box update progress</sub></td>
+<td width="50%" valign="center" align="center"><sub>Custom direct bypass</sub></td>
 </tr>
 </table>
 
