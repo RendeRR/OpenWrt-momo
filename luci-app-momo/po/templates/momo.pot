@@ -694,3 +694,9 @@ msgstr ""
 
 msgid "Failed to load versions"
 msgstr ""
+
+msgid "Bypass Custom IPv4"
+msgstr ""
+
+msgid "Bypass Custom IPv6"
+msgstr ""
