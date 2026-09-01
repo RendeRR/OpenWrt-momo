@@ -168,7 +168,7 @@ return baseclass.extend({
         const apiPort = apiService?.['listen_port'];
         const apiSecret = apiService?.['secret'] ?? '';
         const isTls = apiService?.['tls']?.['enabled'] === true;
-        const dashPath = apiService?.['dashboard']?.['path'] || 'ui';
+        const dashPath = apiService?.['dashboard']?.['path'] || 'dashboard';
         if (!apiPort) {
             return Promise.reject('sing-box API has not been configured');
         }
@@ -180,7 +180,7 @@ return baseclass.extend({
         };
         const query = new URLSearchParams(params).toString();
         const protocol = isTls ? 'https' : 'http';
-        const url = `${protocol}://${window.location.hostname}:${apiPort}/${dashPath}/?${query}`;
+        const url = `${protocol}://${window.location.hostname}:${apiPort}/${dashPath}/login.html?${query}`;
         setTimeout(function () { window.open(url, '_blank') }, 0);
         return Promise.resolve();
     },
