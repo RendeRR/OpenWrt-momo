@@ -73,7 +73,7 @@ Previously, the only "Open Dashboard" button opened a web panel that worked excl
 
 The Mixin settings now include a separate **Sing-box API Config** tab, where you can independently configure sing-box's own native API: listen address and port, access password, the web UI path and download URL, plus HTTPS with your own certificate and key.
 
-A new button has appeared on the app's main page next to the old one — **Open Sing-box Dashboard**. It opens this dashboard in a new browser tab, automatically filling in the right address, port, and password.
+A new button has appeared on the app's main page next to the old one — **Open Sing-box Dashboard**. It provides **seamless auto-login**: the router dynamically generates a secure proxy page (`login.html`) to pass your current API port and secret directly into the dashboard's local storage. One click opens a new tab and logs you in instantly, completely bypassing browser cross-origin (SOP) restrictions without needing to modify the dashboard's source code.
 
 ## Updating the sing-box core from the web interface
 
