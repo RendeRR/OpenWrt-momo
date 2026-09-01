@@ -159,18 +159,30 @@ start_service() {
 		return
 	fi
 	# create auto-login proxy page for dashboard
+	# create auto-login proxy page for dashboard
+
 	local DASH_DIR="/etc/momo/run/dashboard"
+
 	if [ -d "$DASH_DIR" ]; then
-		cat << 'EOF' > "$DASH_DIR/login.html"
+
+		local ROUTER_HOSTNAME=$(uci -q get system.@system[0].hostname)
+
+		[ -z "$ROUTER_HOSTNAME" ] && ROUTER_HOSTNAME="Router"
+
+
+
+		cat << EOF > "$DASH_DIR/login.html"
 
 <!DOCTYPE html><html><head><meta charset="utf-8"><title>Logging in...</title><script>
 
-(function(){var p=new URLSearchParams(window.location.search);if(p.has('hostname')&&p.has('port')){var u=window.location.protocol+'//'+p.get('hostname')+':'+p.get('port'),s=p.get('secret')||'',st={servers:[],activeId:null};try{var d=localStorage.getItem('sing-box-dashboard.servers');if(d)st=JSON.parse(d)}catch(e){}var i=st.servers.findIndex(function(x){return x.url===u});if(i>=0){st.servers[i].secret=s;st.activeId=st.servers[i].id}else{var id=crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c=='x'?r:(r&0x3|0x8);return v.toString(16)});st.servers.push({id:id,name:'Router',url:u,secret:s});st.activeId=id}try{localStorage.setItem('sing-box-dashboard.servers',JSON.stringify(st))}catch(e){}}window.location.replace('./');})();
+(function(){var p=new URLSearchParams(window.location.search);if(p.has('hostname')&&p.has('port')){var u=window.location.protocol+'//'+p.get('hostname')+':'+p.get('port'),s=p.get('secret')||'',st={servers:[],activeId:null};try{var d=localStorage.getItem('sing-box-dashboard.servers');if(d)st=JSON.parse(d)}catch(e){}var i=st.servers.findIndex(function(x){return x.url===u});if(i>=0){st.servers[i].secret=s;st.activeId=st.servers[i].id}else{var id=crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c=='x'?r:(r&0x3|0x8);return v.toString(16)});st.servers.push({id:id,name:'${ROUTER_HOSTNAME}',url:u,secret:s});st.activeId=id}try{localStorage.setItem('sing-box-dashboard.servers',JSON.stringify(st))}catch(e){}}window.location.replace('./');})();
 
 </script></head><body>Redirecting...</body></html>
 
 EOF
+
 		log "App" "Dashboard auto-login page generated."
+
 	fi
 
 	# check profile
