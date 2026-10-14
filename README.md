@@ -59,7 +59,7 @@ echo "Done! Refresh the admin panel with a hard reload (Cmd + Shift + R)."
 
 ```
 
-Tested on Momo v1.2.1.
+Tested on Momo v1.2.2
 
 ## Custom direct bypass for IPs and subnets
 
