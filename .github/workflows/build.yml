@@ -9,6 +9,10 @@ on:
       - 'README.md'
   workflow_dispatch:
 
+# Выдаем права на создание релизов
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Compile OpenWrt Packages
@@ -31,7 +35,7 @@ jobs:
         run: |
           BASE_URL="https://downloads.openwrt.org/snapshots/targets/mediatek/filogic"
           
-          # Скачиваем файл с хешами отдельно
+          # Скачиваем файл с хешами
           wget -qO sha256sums "${BASE_URL}/sha256sums"
           
           # Извлекаем точное имя файла SDK
@@ -50,24 +54,32 @@ jobs:
           echo "src-link custommomo ${GITHUB_WORKSPACE}/momo-source" >> feeds.conf.default
           
           ./scripts/feeds update -a
+          
+          # Устанавливаем пакеты только из кастомного фида
           ./scripts/feeds install -a -p custommomo
-          ./scripts/feeds install -a
           
           make defconfig
           
-          make package/momo/compile V=s
-          make package/luci-app-momo/compile V=s
-          make package/luci-i18n-momo-zh-cn/compile V=s || true
+          # Собираем целевые пакеты в многопоточном режиме
+          make package/momo/compile -j$(nproc) V=s
+          make package/luci-app-momo/compile -j$(nproc) V=s
+          make package/luci-i18n-momo-zh-cn/compile -j$(nproc) V=s || true
 
       - name: Collect Packages
         run: |
           mkdir -p package-artifacts
+          # Собираем только файлы, в названии которых есть momo
           find openwrt-sdk/bin/packages/ -type f -name "*momo*.apk" -exec cp {} package-artifacts/ \;
           find openwrt-sdk/bin/packages/ -type f -name "*momo*.ipk" -exec cp {} package-artifacts/ \;
 
+      - name: Generate Release Tag
+        run: echo "RELEASE_TAG=build-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
         with:
-          name: momo-gl-mt6000-packages
-          path: package-artifacts/*
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Momo Auto-Build ${{ env.RELEASE_TAG }}
+          files: package-artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
