@@ -133,13 +133,7 @@ jobs:
           ./scripts/feeds update packages luci custommomo
           ./scripts/feeds install -a -p custommomo
 
-          # The SDK ships without .config: generate the default one first.
-          make defconfig
-
-          # Build only the selected packages and their dependencies,
-          # not every package/kmod/i18n the SDK knows about.
-          sed -i -E 's/^(CONFIG_(ALL|ALL_KMODS|ALL_NONSHARED))=y/# \1 is not set/' .config
-
+          # The SDK ships without .config, so it is created here.
           cat >> .config <<'EOF'
           CONFIG_SIGNED_PACKAGES=y
           CONFIG_PACKAGE_momo=m
