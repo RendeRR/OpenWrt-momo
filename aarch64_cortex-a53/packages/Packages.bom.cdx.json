@@ -1,0 +1,62 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:4bed7576-4c4c-5f24-9e5a-80fdcba46a4b",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-10-25T20:35:35Z"
+  },
+  "components": [
+    {
+      "name": "cgi-io",
+      "version": "2026.07.21~31cb3c89-r1",
+      "type": "application",
+      "licenses": [
+        {
+          "license": {
+            "name": "GPL-2.0-or-later"
+          }
+        }
+      ]
+    },
+    {
+      "name": "curl",
+      "version": "8.23.0-r1",
+      "cpe": "cpe:/a:haxx:libcurl",
+      "type": "application",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "name": "libcurl4",
+      "version": "8.23.0-r1",
+      "cpe": "cpe:/a:haxx:libcurl",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "name": "libnghttp2-14",
+      "version": "1.70.0-r1",
+      "cpe": "cpe:/a:nghttp2:nghttp2",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ]
+    }
+  ]
+}
