@@ -153,6 +153,14 @@ jobs:
           grep -q '^CONFIG_PACKAGE_momo=m' .config
           grep -q '^CONFIG_PACKAGE_luci-app-momo=m' .config
 
+          # momo's declared dependencies must stay selected after trimming
+          # (fail in seconds here instead of minutes into the build).
+          for pkg in ca-bundle curl firewall4 ip-full \
+                     kmod-inet-diag kmod-nft-socket kmod-nft-tproxy kmod-tun; do
+            grep -Eq "^CONFIG_PACKAGE_${pkg}=[my]" .config \
+              || { echo "Dependency not selected: ${pkg}"; exit 1; }
+          done
+
       # Downloaded sources (Go modules etc.) are content-addressed, so a
       # stale cache is safe: restore-keys fall back to the latest one.
       - name: Cache downloaded sources
