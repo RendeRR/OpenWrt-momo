@@ -72,13 +72,13 @@ jobs:
           make package/momo/compile -j$(nproc) V=s
           make package/luci-app-momo/compile -j$(nproc) V=s
           make package/luci-i18n-momo-zh-cn/compile -j$(nproc) V=s || true
-
+    
       - name: Generate Feed Index
         run: |
           cd openwrt-sdk
           
-          # SDK подпишет базу packages.adb с помощью файла key-build
-          make package/index V=s
+          # Явно заставляем SDK подписать индекс нашим приватным ключом
+          make package/index V=s CONFIG_SIGN_SIGNATURE="${GITHUB_WORKSPACE}/openwrt-sdk/key-build"
           
           # Копируем публичный ключ в фид для публикации на Pages
           cp key-build.pub bin/packages/custom-feed.pem
