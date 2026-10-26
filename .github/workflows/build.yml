@@ -30,15 +30,43 @@ jobs:
       - name: Download OpenWrt SDK
         run: |
           BASE_URL="https://downloads.openwrt.org/snapshots/targets/mediatek/filogic"
-          SDK_FILE=$(curl -s$BASE_URL/sha256sums | grep "openwrt-sdk" | head -n 1 | awk '{print $2}' | sed 's/^\*//')
           
-          echo "Downloading SDK: $SDK_FILE"
-          wget -qO sdk.tar.zst "$BASE_URL/$SDK_FILE"
+          # Скачиваем файл с хешами отдельно
+          wget -qO sha256sums "${BASE_URL}/sha256sums"
+          
+          # Извлекаем точное имя файла SDK
+          SDK_FILE=$(grep "openwrt-sdk" sha256sums | head -n 1 | awk '{print $2}' | sed 's/^\*//')
+          
+          echo "Downloading SDK: ${SDK_FILE}"
+          wget -qO sdk.tar.zst "${BASE_URL}/${SDK_FILE}"
           
           tar --zstd -xf sdk.tar.zst
           mv openwrt-sdk-* openwrt-sdk
 
       - name: Configure Feeds & Compile
         run: |
-          cd openwrt-
+          cd openwrt-sdk
           
+          echo "src-link custommomo ${GITHUB_WORKSPACE}/momo-source" >> feeds.conf.default
+          
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a -p custommomo
+          ./scripts/feeds install -a
+          
+          make defconfig
+          
+          make package/momo/compile V=s
+          make package/luci-app-momo/compile V=s
+          make package/luci-i18n-momo-zh-cn/compile V=s || true
+
+      - name: Collect Packages
+        run: |
+          mkdir -p package-artifacts
+          find openwrt-sdk/bin/packages/ -type f -name "*.apk" -exec cp {} package-artifacts/ \;
+          find openwrt-sdk/bin/packages/ -type f -name "*.ipk" -exec cp {} package-artifacts/ \;
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: momo-gl-mt6000-packages
+          path: package-artifacts/*
