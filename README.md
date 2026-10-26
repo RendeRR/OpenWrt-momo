@@ -31,10 +31,10 @@ Connect to your router via SSH and run the following commands:
 
 ```sh
 # Download and add the repository's public ECDSA key
-wget -qO /etc/apk/keys/custom-feed.pem [https://raw.githubusercontent.com/RendeRR/OpenWrt-momo/main/custom-feed.pem](https://raw.githubusercontent.com/RendeRR/OpenWrt-momo/main/custom-feed.pem)
+wget -qO /etc/apk/keys/custom-feed.pem https://raw.githubusercontent.com/RendeRR/OpenWrt-momo/main/custom-feed.pem
 
 # Add the custom repository to the package manager's feed list
-echo "[https://RendeRR.github.io/OpenWrt-momo/aarch64_cortex-a53/custommomo/packages.adb](https://RendeRR.github.io/OpenWrt-momo/aarch64_cortex-a53/custommomo/packages.adb)" > /etc/apk/repositories.d/custommomo.list
+echo "https://RendeRR.github.io/OpenWrt-momo/aarch64_cortex-a53/custommomo/packages.adb" > /etc/apk/repositories.d/custommomo.list
 
 # Update the package index and install the application
 apk update
