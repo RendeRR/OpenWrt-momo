@@ -1,3 +1,4 @@
+
 name: Build Momo APK for Flint 2
 
 on:
@@ -9,9 +10,12 @@ on:
       - 'README.md'
   workflow_dispatch:
 
-# Выдаем права для создания релизов и пуша в ветку gh-pages
 permissions:
   contents: write
+
+concurrency:
+  group: momo-build
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -22,75 +26,172 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          path: 'momo-source'
+          path: momo-source
 
       - name: Setup Build Environment
         run: |
+          set -euo pipefail
+
           sudo apt-get update
-          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
-            gettext git libncurses5-dev libssl-dev python3-setuptools rsync unzip zlib1g-dev libc6-dev-i386 \
+          sudo apt-get install -y \
+            build-essential clang flex bison g++ gawk gcc-multilib \
+            g++-multilib gettext git libncurses5-dev libssl-dev \
+            python3-setuptools rsync unzip zlib1g-dev libc6-dev-i386 \
             xz-utils curl wget jq zstd
 
       - name: Download OpenWrt SDK
         run: |
-          BASE_URL="https://downloads.openwrt.org/snapshots/targets/mediatek/filogic"
-          
-          # Скачиваем файл с хешами
-          wget -qO sha256sums "${BASE_URL}/sha256sums"
-          
-          # Извлекаем точное имя файла SDK
-          SDK_FILE=$(grep "openwrt-sdk" sha256sums | head -n 1 | awk '{print $2}' | sed 's/^\*//')
-          
-          echo "Downloading SDK: ${SDK_FILE}"
-          wget -qO sdk.tar.zst "${BASE_URL}/${SDK_FILE}"
-          
-          tar --zstd -xf sdk.tar.zst
-          mv openwrt-sdk-* openwrt-sdk
+          set -euo pipefail
 
-      - name: Setup Key, Feeds & Compile
+          BASE_URL="https://downloads.openwrt.org/snapshots/targets/mediatek/filogic"
+
+          wget -qO sha256sums "${BASE_URL}/sha256sums"
+
+          SDK_FILE="$(
+            awk '
+              $2 ~ /openwrt-sdk/ && $2 ~ /Linux-x86_64\.tar\.zst$/ {
+                gsub(/^\*/, "", $2)
+                print $2
+                exit
+              }
+            ' sha256sums
+          )"
+
+          if [[ -z "${SDK_FILE}" ]]; then
+            echo "OpenWrt SDK archive not found."
+            exit 1
+          fi
+
+          echo "Downloading SDK: ${SDK_FILE}"
+          wget -q "${BASE_URL}/${SDK_FILE}" -O sdk.tar.zst
+
+          EXPECTED_SHA="$(
+            awk -v f="${SDK_FILE}" '$2 == f || $2 == "*" f {print $1; exit}' sha256sums
+          )"
+
+          ACTUAL_SHA="$(sha256sum sdk.tar.zst | awk '{print $1}')"
+
+          if [[ -z "${EXPECTED_SHA}" || "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]]; then
+            echo "SDK checksum verification failed."
+            exit 1
+          fi
+
+          mkdir -p openwrt-sdk
+          tar --zstd -xf sdk.tar.zst \
+            --strip-components=1 -C openwrt-sdk
+
+          test -x openwrt-sdk/scripts/feeds
+
+      - name: Cache OpenWrt build directories
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt-sdk/build_dir
+            openwrt-sdk/staging_dir
+            openwrt-sdk/dl
+          key: ${{ runner.os }}-openwrt-filogic-${{ hashFiles('sha256sums') }}-${{ hashFiles('momo-source/**') }}
+          restore-keys: |
+            ${{ runner.os }}-openwrt-filogic-${{ hashFiles('sha256sums') }}-
+
+      - name: Setup Key, Feeds and Configuration
+        working-directory: openwrt-sdk
+        env:
+          FEED_KEY: ${{ secrets.FEED_KEY }}
         run: |
-          cd openwrt-sdk
-          
-          # 1. Сохраняем приватный ECDSA-ключ
-          cat << 'EOF' > key-build.pem
-          ${{ secrets.FEED_KEY }}
-          EOF
-          
-          # 2. Подкладываем публичный ключ
-          cp ${GITHUB_WORKSPACE}/momo-source/custom-feed.pem key-build.pub
-          
-          echo "src-link custommomo ${GITHUB_WORKSPACE}/momo-source" >> feeds.conf.default
-          
+          set -euo pipefail
+
+          if [[ -z "${FEED_KEY:-}" ]]; then
+            echo "FEED_KEY secret is missing."
+            exit 1
+          fi
+
+          umask 077
+          printf '%s\n' "${FEED_KEY}" > key-build.pem
+          chmod 600 key-build.pem
+          unset FEED_KEY
+
+          test -s "${GITHUB_WORKSPACE}/momo-source/custom-feed.pem"
+          cp "${GITHUB_WORKSPACE}/momo-source/custom-feed.pem" key-build.pub
+
+          openssl pkey -in key-build.pem -check -noout
+
+          openssl pkey -in key-build.pem -pubout -out derived-public.pem
+
+          EXPECTED_KEY="$(
+            openssl pkey -pubin \
+              -in "${GITHUB_WORKSPACE}/momo-source/custom-feed.pem" \
+              -outform DER | sha256sum | awk '{print $1}'
+          )"
+
+          DERIVED_KEY="$(
+            openssl pkey -pubin -in derived-public.pem \
+              -outform DER | sha256sum | awk '{print $1}'
+          )"
+
+          if [[ "${EXPECTED_KEY}" != "${DERIVED_KEY}" ]]; then
+            echo "Public and private feed keys do not match."
+            exit 1
+          fi
+
+          echo "src-link custommomo ${GITHUB_WORKSPACE}/momo-source" \
+            >> feeds.conf.default
+
           ./scripts/feeds update -a
+
           ./scripts/feeds install -a -p custommomo
-          
-          # 3. Принудительно включаем подпись в конфигурации
+
           echo "CONFIG_SIGNED_PACKAGES=y" >> .config
           make defconfig
-          
-          # 4. ВАЖНО: передаем ключ BUILD_KEY_APK_SEC для подписи каждого .apk файла при компиляции
-          make package/momo/compile -j$(nproc) V=s BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
-          make package/luci-app-momo/compile -j$(nproc) V=s BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
-          make package/luci-i18n-momo-zh-cn/compile -j$(nproc) V=s BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem" || true
+
+      - name: Compile Momo Packages
+        working-directory: openwrt-sdk
+        run: |
+          set -euo pipefail
+
+          make \
+            package/momo/compile \
+            package/luci-app-momo/compile \
+            package/luci-i18n-momo-zh-cn/compile \
+            -j"$(nproc)" V=s \
+            BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
 
       - name: Generate Feed Index
+        working-directory: openwrt-sdk
         run: |
-          cd openwrt-sdk
-          
-          # 5. Подписываем сам индекс packages.adb тем же ключом
-          make package/index V=s BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
-          
+          set -euo pipefail
+
+          make package/index V=s \
+            BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
+
           cp key-build.pub bin/packages/custom-feed.pem
 
-      - name: Collect Packages for Release
+          test -s bin/packages/*/custommomo/packages.adb
+
+      - name: Collect and Validate Packages
         run: |
+          set -euo pipefail
+
           mkdir -p package-artifacts
-          # Собираем только файлы, в названии которых есть momo, для прикрепления к релизу
-          find openwrt-sdk/bin/packages/ -type f -name "*momo*.apk" -exec cp {} package-artifacts/ \;
-          find openwrt-sdk/bin/packages/ -type f -name "*momo*.ipk" -exec cp {} package-artifacts/ \;
+
+          find openwrt-sdk/bin/packages/ -type f \
+            \( -name '*momo*.apk' -o -name '*momo*.ipk' \) \
+            -exec cp -f {} package-artifacts/ \;
+
+          for package in momo luci-app-momo luci-i18n-momo-zh-cn; do
+            if ! find package-artifacts -maxdepth 1 -type f \
+              \( -name "${package}-*.apk" -o -name "${package}-*.ipk" \) \
+              | grep -q .; then
+              echo "Required package not found: ${package}"
+              exit 1
+            fi
+          done
+
+          echo "Built packages:"
+          ls -lh package-artifacts/
 
       - name: Generate Release Tag
-        run: echo "RELEASE_TAG=build-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
+        run: |
+          echo "RELEASE_TAG=build-$(date -u +'%Y%m%d-%H%M%S')" >> "$GITHUB_ENV"
 
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
@@ -98,12 +199,14 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           name: Momo Auto-Build ${{ env.RELEASE_TAG }}
           files: package-artifacts/*
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Deploy to GitHub Pages (Feed)
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./openwrt-sdk/bin/packages/
+          publish_branch: gh-pages
           keep_files: false
