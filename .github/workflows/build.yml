@@ -1,0 +1,84 @@
+name: Build Momo APK for Flint 2
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - 'README.md'
+  workflow_dispatch: # Позволяет запускать сборку вручную из интерфейса GitHub
+
+jobs:
+  build:
+    name: Compile OpenWrt Packages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: 'momo-source'
+
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
+            gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev libc6-dev-i386 \
+            xz-utils curl wget jq
+
+      - name: Download OpenWrt SDK
+        run: |
+          # По умолчанию используем Snapshot ветку для Flint 2 (где формат apk и свежий sing-box). 
+          # Если нужна стабильная версия, замени URL на:
+          # BASE_URL="https://downloads.openwrt.org/releases/24.10.0/targets/mediatek/filogic"
+          BASE_URL="https://downloads.openwrt.org/snapshots/targets/mediatek/filogic"
+          
+          # Динамически находим имя архива SDK
+          SDK_FILE=$(curl -s $BASE_URL/sha256sums | grep "openwrt-sdk" | head -n 1 | awk '{print $2}' | sed 's/^\*//')
+          
+          echo "Downloading SDK: $SDK_FILE"
+          wget -qO sdk.tar.xz "$BASE_URL/$SDK_FILE"
+          
+          tar -Jxf sdk.tar.xz
+          mv openwrt-sdk-* openwrt-sdk
+
+      - name: Configure Feeds & Compile
+        run: |
+          cd openwrt-sdk
+          
+          # Подключаем скачанный форк как локальный feed
+          echo "src-link custommomo ${GITHUB_WORKSPACE}/momo-source" >> feeds.conf.default
+          
+          # Обновляем все фиды (базовые пакеты + наш)
+          ./scripts/feeds update -a
+          
+          # Устанавливаем пакеты из нашего фида
+          ./scripts/feeds install -a -p custommomo
+          
+          # Доустанавливаем зависимости (luci, sing-box и т.д.)
+          ./scripts/feeds install -a
+          
+          # Создаем дефолтный конфиг
+          make defconfig
+          
+          # Собираем сам пакет momo и интерфейс
+          # (V=s выводит подробный лог, полезно при ошибках сборки)
+          make package/momo/compile V=s
+          make package/luci-app-momo/compile V=s
+          make package/luci-i18n-momo-zh-cn/compile V=s || true
+
+      - name: Collect Packages
+        run: |
+          mkdir -p package-artifacts
+          # Собираем новые пакеты .apk (для OpenWrt 24.10+)
+          find openwrt-sdk/bin/packages/ -type f -name "*.apk" -exec cp {} package-artifacts/ \;
+          # И резервно ищем .ipk (на случай, если поменяешь SDK на 23.05)
+          find openwrt-sdk/bin/packages/ -type f -name "*.ipk" -exec cp {} package-artifacts/ \;
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: momo-gl-mt6000-packages
+          path: package-artifacts/*
+          
