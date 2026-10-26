@@ -62,8 +62,9 @@ jobs:
       - name: Collect Packages
         run: |
           mkdir -p package-artifacts
-          find openwrt-sdk/bin/packages/ -type f -name "*.apk" -exec cp {} package-artifacts/ \;
-          find openwrt-sdk/bin/packages/ -type f -name "*.ipk" -exec cp {} package-artifacts/ \;
+          find openwrt-sdk/bin/packages/ -type f -name "*momo*.apk" -exec cp {} package-artifacts/ \;
+          find openwrt-sdk/bin/packages/ -type f -name "*momo*.ipk" -exec cp {} package-artifacts/ \;
+
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
