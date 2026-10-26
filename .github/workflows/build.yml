@@ -9,7 +9,7 @@ on:
       - 'README.md'
   workflow_dispatch:
 
-# Выдаем права на создание релизов
+# Выдаем права для создания релизов и пуша в ветку gh-pages
 permissions:
   contents: write
 
@@ -55,7 +55,7 @@ jobs:
           
           ./scripts/feeds update -a
           
-          # Устанавливаем пакеты только из кастомного фида
+          # Устанавливаем пакеты только из кастомного фида (ускоряет сборку)
           ./scripts/feeds install -a -p custommomo
           
           make defconfig
@@ -65,10 +65,19 @@ jobs:
           make package/luci-app-momo/compile -j$(nproc) V=s
           make package/luci-i18n-momo-zh-cn/compile -j$(nproc) V=s || true
 
-      - name: Collect Packages
+      - name: Generate Feed Index & Key
+        run: |
+          cd openwrt-sdk
+          # Генерируем индексы APKINDEX.tar.gz / Packages.gz для пакетного менеджера
+          make package/index V=s
+          
+          # Копируем публичный ключ сборки в корень фида
+          cp key-build.pub bin/packages/custom-feed-key.pub
+
+      - name: Collect Packages for Release
         run: |
           mkdir -p package-artifacts
-          # Собираем только файлы, в названии которых есть momo
+          # Собираем только файлы, в названии которых есть momo, для прикрепления к релизу
           find openwrt-sdk/bin/packages/ -type f -name "*momo*.apk" -exec cp {} package-artifacts/ \;
           find openwrt-sdk/bin/packages/ -type f -name "*momo*.ipk" -exec cp {} package-artifacts/ \;
 
@@ -83,3 +92,10 @@ jobs:
           files: package-artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to GitHub Pages (Feed)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./openwrt-sdk/bin/packages/
+          keep_files: false
