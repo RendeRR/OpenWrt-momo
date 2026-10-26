@@ -3,7 +3,7 @@
   "architecture": "aarch64_cortex-a53",
   "packages": {
     "luci-app-momo": "1.2.2-r1",
-    "luci-i18n-momo-zh-cn": "26.299.49367~d23af3b",
+    "luci-i18n-momo-zh-cn": "26.299.50825~47fc36d",
     "momo": "2026.10.14-r1"
   }
 }
