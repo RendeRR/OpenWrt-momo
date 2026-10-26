@@ -9,7 +9,7 @@ on:
       - 'README.md'
   workflow_dispatch:
 
-# Права для создания релизов и пуша в ветку gh-pages
+# Выдаем права для создания релизов и пуша в ветку gh-pages
 permissions:
   contents: write
 
@@ -51,36 +51,35 @@ jobs:
         run: |
           cd openwrt-sdk
           
-          # Правильно записываем многострочный приватный ключ ECDSA с сохранением переносов
-          cat << 'EOF' > key-build
+          # 1. Сохраняем приватный ECDSA-ключ
+          cat << 'EOF' > key-build.pem
           ${{ secrets.FEED_KEY }}
           EOF
           
-          # Подкладываем публичный ключ из корня репозитория
+          # 2. Подкладываем публичный ключ
           cp ${GITHUB_WORKSPACE}/momo-source/custom-feed.pem key-build.pub
           
           echo "src-link custommomo ${GITHUB_WORKSPACE}/momo-source" >> feeds.conf.default
           
           ./scripts/feeds update -a
-          
-          # Устанавливаем пакеты только из кастомного фида
           ./scripts/feeds install -a -p custommomo
           
+          # 3. Принудительно включаем подпись в конфигурации
+          echo "CONFIG_SIGNED_PACKAGES=y" >> .config
           make defconfig
           
-          # Собираем целевые пакеты в многопоточном режиме
-          make package/momo/compile -j$(nproc) V=s
-          make package/luci-app-momo/compile -j$(nproc) V=s
-          make package/luci-i18n-momo-zh-cn/compile -j$(nproc) V=s || true
-    
+          # 4. ВАЖНО: передаем ключ BUILD_KEY_APK_SEC для подписи каждого .apk файла при компиляции
+          make package/momo/compile -j$(nproc) V=s BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
+          make package/luci-app-momo/compile -j$(nproc) V=s BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
+          make package/luci-i18n-momo-zh-cn/compile -j$(nproc) V=s BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem" || true
+
       - name: Generate Feed Index
         run: |
           cd openwrt-sdk
           
-          # Явно заставляем SDK подписать индекс нашим приватным ключом
-          make package/index V=s CONFIG_SIGN_SIGNATURE="${GITHUB_WORKSPACE}/openwrt-sdk/key-build"
+          # 5. Подписываем сам индекс packages.adb тем же ключом
+          make package/index V=s BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
           
-          # Копируем публичный ключ в фид для публикации на Pages
           cp key-build.pub bin/packages/custom-feed.pem
 
       - name: Collect Packages for Release
