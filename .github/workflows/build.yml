@@ -105,7 +105,8 @@ jobs:
             exit 1
           fi
 
-          umask 077
+          umask 022
+
           printf '%s\n' "${FEED_KEY}" > key-build.pem
           chmod 600 key-build.pem
           unset FEED_KEY
