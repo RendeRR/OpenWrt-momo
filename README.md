@@ -25,41 +25,21 @@ Additions on top of the original [OpenWrt-momo](https://github.com/nikkinikki-or
 
 ## Installation
 
-There are no ready-made builds (packages) for this fork yet. To get the changed files, download and run the script below on your router — it pulls the necessary files straight from the fork's repository and restarts the services.
+Pre-compiled packages are automatically built and published via GitHub Pages for the `aarch64_cortex-a53` architecture (e.g., GL.iNet Flint 2). You can add this repository to your OpenWrt router and install the packages using the `apk` package manager.
+
+Connect to your router via SSH and run the following commands:
 
 ```sh
-#!/bin/sh
-# Base URL of your fork
-RAW_URL="https://raw.githubusercontent.com/RendeRR/OpenWrt-momo/main"
+# Download and add the repository's public ECDSA key
+wget -qO /etc/apk/keys/custom-feed.pem [https://raw.githubusercontent.com/RendeRR/OpenWrt-momo/main/custom-feed.pem](https://raw.githubusercontent.com/RendeRR/OpenWrt-momo/main/custom-feed.pem)
 
-echo "Downloading Frontend (LuCI)..."
-wget -qO /www/luci-static/resources/view/momo/app.js "$RAW_URL/luci-app-momo/htdocs/luci-static/resources/view/momo/app.js"
-wget -qO /www/luci-static/resources/view/momo/mixin.js "$RAW_URL/luci-app-momo/htdocs/luci-static/resources/view/momo/mixin.js"
-wget -qO /www/luci-static/resources/view/momo/proxy.js "$RAW_URL/luci-app-momo/htdocs/luci-static/resources/view/momo/proxy.js"
-wget -qO /www/luci-static/resources/tools/momo.js "$RAW_URL/luci-app-momo/htdocs/luci-static/resources/tools/momo.js"
+# Add the custom repository to the package manager's feed list
+echo "[https://RendeRR.github.io/OpenWrt-momo/aarch64_cortex-a53/custommomo/packages.adb](https://RendeRR.github.io/OpenWrt-momo/aarch64_cortex-a53/custommomo/packages.adb)" > /etc/apk/repositories.d/custommomo.list
 
-echo "Downloading Backend (ucode)..."
-wget -qO /etc/momo/ucode/mixin.uc "$RAW_URL/momo/files/ucode/mixin.uc"
-wget -qO /etc/momo/ucode/hijack.ut "$RAW_URL/momo/files/ucode/hijack.ut"
-
-echo "Downloading RPC (backend for the Sing-Box updater)..."
-wget -qO /usr/share/rpcd/ucode/luci.momo "$RAW_URL/luci-app-momo/root/usr/share/rpcd/ucode/luci.momo"
-wget -qO /usr/share/rpcd/acl.d/luci-app-momo.json "$RAW_URL/luci-app-momo/root/usr/share/rpcd/acl.d/luci-app-momo.json"
-
-echo "Downloading the init script..."
-wget -qO /etc/init.d/momo "$RAW_URL/momo/files/momo.init"
-chmod +x /etc/init.d/momo
-
-echo "Clearing LuCI cache and restarting services..."
-rm -rf /tmp/luci-*
-/etc/init.d/rpcd restart
-/etc/init.d/momo restart
-
-echo "Done! Refresh the admin panel with a hard reload (Cmd + Shift + R)."
-
+# Update the package index and install the application
+apk update
+apk add momo luci-app-momo
 ```
-
-Tested on Momo v1.2.2
 
 ## Custom direct bypass for IPs and subnets
 
