@@ -65,14 +65,16 @@ jobs:
           make package/luci-app-momo/compile -j$(nproc) V=s
           make package/luci-i18n-momo-zh-cn/compile -j$(nproc) V=s || true
 
-      - name: Generate Feed Index & Key
+      - name: Generate Feed Index
         run: |
           cd openwrt-sdk
           # Генерируем индексы APKINDEX.tar.gz / Packages.gz для пакетного менеджера
           make package/index V=s
           
-          # Копируем публичный ключ сборки в корень фида
-          cp key-build.pub bin/packages/custom-feed-key.pub
+          # Копируем публичный ключ только если он существует
+          if [ -f key-build.pub ]; then
+            cp key-build.pub bin/packages/custom-feed-key.pub
+          fi
 
       - name: Collect Packages for Release
         run: |
