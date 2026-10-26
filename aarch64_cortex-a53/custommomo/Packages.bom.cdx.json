@@ -1,7 +1,7 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.4",
-  "serialNumber": "urn:uuid:63839499-45ab-5f3b-a0d5-f9f565ef6407",
+  "serialNumber": "urn:uuid:6af7dad4-b35a-551d-9ea5-45aa8544af35",
   "version": 1,
   "metadata": {
     "timestamp": "2026-10-25T20:35:35Z"
@@ -14,7 +14,7 @@
     },
     {
       "name": "luci-i18n-momo-zh-cn",
-      "version": "26.299.52230~e63bef0",
+      "version": "26.299.54357~39a955d",
       "type": "application"
     },
     {
