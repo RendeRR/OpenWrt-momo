@@ -134,7 +134,14 @@ jobs:
           ./scripts/feeds update base packages luci custommomo
           ./scripts/feeds install -a -p custommomo
 
-          # The SDK ships without .config, so it is created here.
+          # The SDK ships without .config: generate the default one first.
+          make defconfig
+
+          # Build only the selected packages and their dependencies
+          # (no extra iproute2 variants, unrelated kmods, i18n, etc.).
+          # If a dependency ever fails to build, delete this sed line.
+          sed -i -E 's/^(CONFIG_(ALL|ALL_KMODS|ALL_NONSHARED))=y/# \1 is not set/' .config
+
           cat >> .config <<'EOF'
           CONFIG_SIGNED_PACKAGES=y
           CONFIG_PACKAGE_momo=m
@@ -155,17 +162,6 @@ jobs:
           key: openwrt-dl-${{ hashFiles('momo-source/**/Makefile') }}
           restore-keys: |
             openwrt-dl-
-
-      # Host Go toolchain: the slowest part of a cold build.
-      # Keyed by the golang package Makefile, so it is rebuilt only on a Go bump.
-      # If it ever misbehaves after an SDK change, bump the "v1" suffix.
-      - name: Cache host Go toolchain
-        uses: actions/cache@v4
-        with:
-          path: |
-            openwrt-sdk/build_dir/hostpkg
-            openwrt-sdk/staging_dir/hostpkg
-          key: openwrt-hostpkg-v1-${{ hashFiles('openwrt-sdk/feeds/packages/lang/golang/golang/Makefile') }}
 
       - name: Compile Momo Packages
         working-directory: openwrt-sdk
