@@ -1,4 +1,3 @@
-
 name: Build Momo APK for Flint 2
 
 on:
@@ -21,25 +20,26 @@ jobs:
   build:
     name: Compile OpenWrt Packages
     runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           path: momo-source
+          fetch-depth: 1
 
       - name: Setup Build Environment
         run: |
           set -euo pipefail
 
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential clang flex bison g++ gawk gcc-multilib \
-            g++-multilib gettext git libncurses5-dev libssl-dev \
-            python3-setuptools rsync unzip zlib1g-dev libc6-dev-i386 \
-            xz-utils curl wget jq zstd
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            build-essential gawk gettext git libncurses-dev libssl-dev \
+            python3-setuptools rsync unzip wget xz-utils zlib1g-dev zstd
 
       - name: Download OpenWrt SDK
+        id: sdk
         run: |
           set -euo pipefail
 
@@ -62,12 +62,12 @@ jobs:
             exit 1
           fi
 
-          echo "Downloading SDK: ${SDK_FILE}"
-          wget -q "${BASE_URL}/${SDK_FILE}" -O sdk.tar.zst
-
           EXPECTED_SHA="$(
             awk -v f="${SDK_FILE}" '$2 == f || $2 == "*" f {print $1; exit}' sha256sums
           )"
+
+          echo "Downloading SDK: ${SDK_FILE}"
+          wget -q "${BASE_URL}/${SDK_FILE}" -O sdk.tar.zst
 
           ACTUAL_SHA="$(sha256sum sdk.tar.zst | awk '{print $1}')"
 
@@ -77,21 +77,12 @@ jobs:
           fi
 
           mkdir -p openwrt-sdk
-          tar --zstd -xf sdk.tar.zst \
-            --strip-components=1 -C openwrt-sdk
+          zstd -dc sdk.tar.zst | tar -x --strip-components=1 -C openwrt-sdk
+          rm -f sdk.tar.zst
 
           test -x openwrt-sdk/scripts/feeds
 
-      - name: Cache OpenWrt build directories
-        uses: actions/cache@v4
-        with:
-          path: |
-            openwrt-sdk/build_dir
-            openwrt-sdk/staging_dir
-            openwrt-sdk/dl
-          key: ${{ runner.os }}-openwrt-filogic-${{ hashFiles('sha256sums') }}-${{ hashFiles('momo-source/**') }}
-          restore-keys: |
-            ${{ runner.os }}-openwrt-filogic-${{ hashFiles('sha256sums') }}-
+          echo "sha=${EXPECTED_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Key, Feeds and Configuration
         working-directory: openwrt-sdk
@@ -115,7 +106,6 @@ jobs:
           cp "${GITHUB_WORKSPACE}/momo-source/custom-feed.pem" key-build.pub
 
           openssl pkey -in key-build.pem -check -noout
-
           openssl pkey -in key-build.pem -pubout -out derived-public.pem
 
           EXPECTED_KEY="$(
@@ -134,38 +124,72 @@ jobs:
             exit 1
           fi
 
+          rm -f derived-public.pem
+
           echo "src-link custommomo ${GITHUB_WORKSPACE}/momo-source" \
             >> feeds.conf.default
 
-          ./scripts/feeds update -a
-
+          # Only the feeds we actually need (packages: golang + deps, luci: luci.mk/luci-base)
+          ./scripts/feeds update packages luci custommomo
           ./scripts/feeds install -a -p custommomo
 
-          echo "CONFIG_SIGNED_PACKAGES=y" >> .config
+          # Build only the selected packages and their dependencies,
+          # not every package/kmod/i18n the SDK knows about.
+          sed -i -E 's/^(CONFIG_(ALL|ALL_KMODS|ALL_NONSHARED))=y/# \1 is not set/' .config
+
+          cat >> .config <<'EOF'
+          CONFIG_SIGNED_PACKAGES=y
+          CONFIG_PACKAGE_momo=m
+          CONFIG_PACKAGE_luci-app-momo=m
+          EOF
+
           make defconfig
+
+          grep -q '^CONFIG_PACKAGE_momo=m' .config
+          grep -q '^CONFIG_PACKAGE_luci-app-momo=m' .config
+
+      # Downloaded sources (Go modules etc.) are content-addressed, so a
+      # stale cache is safe: restore-keys fall back to the latest one.
+      - name: Cache downloaded sources
+        uses: actions/cache@v4
+        with:
+          path: openwrt-sdk/dl
+          key: openwrt-dl-${{ hashFiles('momo-source/**/Makefile') }}
+          restore-keys: |
+            openwrt-dl-
+
+      # Host Go toolchain: the slowest part of a cold build.
+      # Keyed by the golang package Makefile, so it is rebuilt only on a Go bump.
+      # If it ever misbehaves after an SDK change, bump the "v1" suffix.
+      - name: Cache host Go toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt-sdk/build_dir/hostpkg
+            openwrt-sdk/staging_dir/hostpkg
+          key: openwrt-hostpkg-v1-${{ hashFiles('openwrt-sdk/feeds/packages/lang/golang/golang/Makefile') }}
 
       - name: Compile Momo Packages
         working-directory: openwrt-sdk
         run: |
           set -euo pipefail
 
-          make \
-            package/momo/compile \
-            package/luci-app-momo/compile \
-            package/luci-i18n-momo-zh-cn/compile \
-            -j"$(nproc)" V=s \
-            BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
+          TARGETS="package/momo/compile package/luci-app-momo/compile"
+          KEY="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
+
+          # Quiet parallel build; on failure re-run single-threaded and verbose
+          # so the actual error is easy to find in the log.
+          make ${TARGETS} -j"$(nproc)" BUILD_KEY_APK_SEC="${KEY}" \
+            || make ${TARGETS} -j1 V=s BUILD_KEY_APK_SEC="${KEY}"
 
       - name: Generate Feed Index
         working-directory: openwrt-sdk
         run: |
           set -euo pipefail
 
-          make package/index V=s \
-            BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
+          make package/index BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
 
-          cp key-build.pub bin/packages/custom-feed.pem
-
+          ls bin/packages/*/custommomo/packages.adb
           test -s bin/packages/*/custommomo/packages.adb
 
       - name: Collect and Validate Packages
@@ -175,10 +199,11 @@ jobs:
           mkdir -p package-artifacts
 
           find openwrt-sdk/bin/packages/ -type f \
-            \( -name '*momo*.apk' -o -name '*momo*.ipk' \) \
+            \( -name 'momo-*.apk' -o -name 'luci-app-momo-*.apk' \
+               -o -name 'momo-*.ipk' -o -name 'luci-app-momo-*.ipk' \) \
             -exec cp -f {} package-artifacts/ \;
 
-          for package in momo luci-app-momo luci-i18n-momo-zh-cn; do
+          for package in momo luci-app-momo; do
             if ! find package-artifacts -maxdepth 1 -type f \
               \( -name "${package}-*.apk" -o -name "${package}-*.ipk" \) \
               | grep -q .; then
@@ -189,6 +214,22 @@ jobs:
 
           echo "Built packages:"
           ls -lh package-artifacts/
+
+      # Publish only our own feed (not luci/base/packages built as dependencies),
+      # keeping the same <arch>/custommomo/ layout on gh-pages.
+      - name: Prepare GitHub Pages content
+        run: |
+          set -euo pipefail
+
+          mkdir -p site
+          for dir in openwrt-sdk/bin/packages/*/custommomo; do
+            arch="$(basename "$(dirname "${dir}")")"
+            mkdir -p "site/${arch}"
+            cp -a "${dir}" "site/${arch}/"
+          done
+          cp openwrt-sdk/key-build.pub site/custom-feed.pem
+
+          find site -maxdepth 3 | sort
 
       - name: Generate Release Tag
         run: |
@@ -208,6 +249,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./openwrt-sdk/bin/packages/
+          publish_dir: ./site
           publish_branch: gh-pages
           keep_files: false
