@@ -61,7 +61,7 @@ const methods = {
 		call: function(req) {
 			const version = req.args?.version;
 			if (!version || !match(version, /^[a-zA-Z0-9._-]+$/)) return { result: "Invalid version specified" };
-			const process = popen(`{ curl -fsSL https://sing-box.app/install.sh | sh -s -- --version ` + version + ` && /etc/init.d/momo restart; } 2>&1`);
+			const process = popen(`{ cd /tmp && curl -fsSL https://raw.githubusercontent.com/SagerNet/sing-box/refs/heads/testing/docs/installation/tools/install.sh | sh -s -- --version ` + version + ` && /etc/init.d/momo restart; } 2>&1`);
 			let output = '';
 			if (process) {
 				output = process.read('all');
@@ -81,16 +81,27 @@ const methods = {
 			const body = req.args?.body;
 
 			const profile = load_profile();
-			const api_listen = profile['experimental']['clash_api']['external_controller'];
-			const api_secret = profile['experimental']['clash_api']['secret'];
+			const api_listen = profile?.['experimental']?.['clash_api']?.['external_controller'];
+			const api_secret = profile?.['experimental']?.['clash_api']?.['secret'];
 
 			if (!api_listen) {
 				return result;
 			}
 
 			const url = api_listen + path;
+			let cmd = `curl -s --request '${method}'`;
+			if (api_secret) {
+				cmd += ` --oauth2-bearer '${api_secret}'`;
+			}
+			if (query) {
+				cmd += ` --url-query '${query}'`;
+			}
+			if (body) {
+				cmd += ` --data '${body}'`;
+			}
+			cmd += ` '${url}'`;
 
-			const process = popen(`curl --request '${method}' --oauth2-bearer '${api_secret}' --url-query '${query}' --data '${body}' '${url}'`);
+			const process = popen(cmd);
 			if (process) {
 				result = json(process);
 				process.close();

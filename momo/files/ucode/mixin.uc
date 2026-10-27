@@ -54,8 +54,6 @@ if (api_listen_str) {
     }
 }
 
-config['services'] = [];
-
 const profile = load_profile();
 
 if (api_listen && api_listen_port) {
@@ -119,7 +117,10 @@ if (api_listen && api_listen_port) {
             if (tls_key) api_service["tls"]["key_path"] = tls_key;
         }
 
-        push(config['services'], api_service);
+        if (type(profile['services']) != 'array') {
+            profile['services'] = [];
+        }
+        push(profile['services'], api_service);
     }
 }
 

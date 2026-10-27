@@ -171,11 +171,11 @@ return view.extend({
         s.tab('bypass', _('Bypass'));
 
         o = s.taboption('bypass', form.DynamicList, 'bypass_custom_ip', _('Bypass Custom IPv4'));
-        o.datatype = 'cidr4';
+        o.datatype = 'ip4addr';
         o.placeholder = '77.88.0.0/18';
 
         o = s.taboption('bypass', form.DynamicList, 'bypass_custom_ip6', _('Bypass Custom IPv6'));
-        o.datatype = 'cidr6';
+        o.datatype = 'ip6addr';
         o.placeholder = '2a02:6b8::/32';
 
         o = s.taboption('bypass', form.Flag, 'bypass_china_mainland_ip', _('Bypass China Mainland IP'));

@@ -159,11 +159,13 @@ start_service() {
 		return
 	fi
 	# create auto-login proxy page for dashboard
-	local singbox_api_ui_path
+	local singbox_api_ui_path singbox_api_listen
 	config_get singbox_api_ui_path "mixin" "singbox_api_ui_path" "dashboard"
+	config_get singbox_api_listen "mixin" "singbox_api_listen"
 	local DASH_DIR="/etc/momo/run/$singbox_api_ui_path"
 
-	if [ -d "$DASH_DIR" ]; then
+	if [ -n "$singbox_api_listen" ] || [ -d "$DASH_DIR" ]; then
+		mkdir -p "$DASH_DIR"
 		local ROUTER_HOSTNAME=$(uci -q get system.@system[0].hostname)
 		[ -z "$ROUTER_HOSTNAME" ] && ROUTER_HOSTNAME="Router"
 
@@ -314,7 +316,7 @@ service_started() {
 	config_get tun_rule_pref "routing" "tun_rule_pref" "1025"
 	config_get tproxy_route_table "routing" "tproxy_route_table" "80"
 	config_get tun_route_table "routing" "tun_route_table" "81"
-	config_get cgroup_id "routing" "cgroup_id" "0x12061206"
+	config_get cgroup_id "routing" "cgroup_id" "0x07250725"
 	config_get cgroup_name "routing" "cgroup_name" "momo"
 	config_get dummy_device "routing" "dummy_device" "momo-dummy"
 	# prepare config
