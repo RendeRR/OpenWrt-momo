@@ -43,21 +43,33 @@ apk add momo luci-app-momo
 
 ## Custom direct bypass for IPs and subnets
 
-The **Bypass** tab now features **Bypass Custom IPv4** and **Bypass Custom IPv6** options. This allows you to specify custom IP addresses (e.g., `194.221.250.50/32`) and CIDR subnets (e.g., `77.88.0.0/18`) that should bypass the sing-box proxy entirely.
+The **Bypass** tab now features **Bypass Custom IPv4** and **Bypass Custom IPv6** options. This allows you to specify custom single IP addresses (e.g., `194.221.250.50` or `194.221.250.50/32`) and CIDR subnets (e.g., `77.88.0.0/18`) that should bypass the sing-box proxy entirely.
 
 Traffic routing for these destinations is handled natively at the kernel level using `nftables` named sets, skipping the sing-box core completely. This significantly reduces CPU load on the router, eliminates unnecessary processing overhead, and saves remote proxy bandwidth.
+
+## Disable QUIC (Reject UDP 443)
+
+A new **Disable QUIC (Reject UDP 443)** toggle is available under **Proxy Config**. When enabled, outgoing UDP port 443 traffic for proxied connections is dropped at the `nftables` mangle stage (while still respecting reserved and custom bypass IP sets). This forces browsers and apps to fall back to TCP/TLS immediately without hanging on throttled or unstable QUIC connections.
 
 ## A separate dashboard for the sing-box API
 
 Previously, the only "Open Dashboard" button opened a web panel that worked exclusively through the Clash-compatible API. If that API was disabled in settings, there was no dashboard to open at all.
 
-The Mixin settings now include a separate **Sing-box API Config** tab, where you can independently configure sing-box's own native API: listen address and port, access password, the web UI path and download URL, plus HTTPS with your own certificate and key.
+The Mixin settings now include a separate **Sing-box API Config** tab, where you can independently configure sing-box's own native API: listen address and port, access password, the web UI path and download URL, plus HTTPS with your own certificate and key. Existing entries in the profile's `services[]` array are preserved when merging the API service configuration.
 
-A new button has appeared on the app's main page next to the old one — **Open Sing-box Dashboard**. It provides **seamless auto-login**: the router dynamically generates a secure proxy page (`login.html`) to pass your current API port and secret directly into the dashboard's local storage. One click opens a new tab and logs you in instantly, completely bypassing browser cross-origin (SOP) restrictions without needing to modify the dashboard's source code.
+A new button has appeared on the app's main page next to the old one — **Open Sing-box Dashboard**. It provides **seamless auto-login**: the router dynamically creates the dashboard directory and generates a secure proxy page (`login.html`) to pass your current API port and secret directly into the dashboard's local storage. One click opens a new tab and logs you in instantly, completely bypassing browser cross-origin (SOP) restrictions without needing to modify the dashboard's source code.
 
 ## Updating the sing-box core from the web interface
 
-A new **Sing-Box Update** block has appeared on the app page. The list of available sing-box versions is fetched directly from GitHub — just pick a version from the dropdown and click "Install". Downloading and installing happen without SSHing into the router, and the result is shown in a popup.
+A new **Sing-Box Update** block has appeared on the app page:
+- **Grouped version list**: Releases fetched from GitHub are organized into **Stable Releases** and **Pre-releases (Beta / Alpha)**, with the latest stable version selected by default and your currently installed version marked with `✓ [Installed]`.
+- **Resilient downloads & GitHub mirror fallback**: The installer script is fetched directly from the official GitHub repository into `/tmp` (RAM) instead of `sing-box.app` (which may be blocked in some regions) or root flash storage. You can choose between **Auto (GitHub + Mirror Fallback)**, **Mirror (`ghfast.top`)**, **Mirror (`gh-proxy.com`)**, or **GitHub Direct** so core updates succeed even when direct access to GitHub is throttled or unreachable.
+
+## In-editor profile validation and formatting
+
+The **Editor** tab now includes a **Profile Tools** bar right above the text area with two actions that work on your current unsaved buffer:
+- **Test Config (`sing-box check`)**: Validates the current editor content against `sing-box check` and displays the result or exact error line in a modal without restarting the running service.
+- **Format JSON (`sing-box format`)**: Normalizes and formats the JSON in place using `sing-box format`.
 
 ## Checking the profile before startup
 
@@ -67,4 +79,6 @@ The final check before startup is also more reliable now: previously the app for
 
 ## Small stuff
 
-The "App Version" and "Core Version" fields on the status page now display more neatly — no more line wrapping.
+- The "App Version" and "Core Version" fields on the status page now display more neatly — no more line wrapping.
+- Fixed default `cgroup_id` alignment in `momo.init` and added safe checks when Clash API is disabled in `luci.momo`.
+
