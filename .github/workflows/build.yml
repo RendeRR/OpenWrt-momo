@@ -231,10 +231,14 @@ jobs:
           done
           cp openwrt-sdk/key-build.pub site/custom-feed.pem
 
-          # Generate HTML file tree for the root page
+          # Generate HTML file tree with fixed paths, hidden JSONs, and hidden footer
           (
             cd site
-            tree -H '.' -T "Momo's Feed" --noreport --charset utf-8 -I "index.html" -o index.html
+            # -H добавляет префикс репозитория в ссылки, -I скрывает index.html и все .json файлы
+            tree -H '/OpenWrt-momo' -T "Momo's Feed" --noreport --charset utf-8 -I "index.html|*.json" -o index.html
+            
+            # Скрываем блок футера tree через внедрение CSS-стиля в <head> сгенерированного файла
+            sed -i 's|</head>|<style>hr, .VERSION { display: none; }</style></head>|' index.html
           )
 
           find site -maxdepth 3 | sort
