@@ -47,7 +47,21 @@ const callMomoProfile = rpc.declare({
 const callMomoUpdateSingbox = rpc.declare({
     object: 'luci.momo',
     method: 'update_singbox',
-    params: ['version'],
+    params: ['version', 'mirror'],
+    expect: { '': {} }
+});
+
+const callMomoCheckProfile = rpc.declare({
+    object: 'luci.momo',
+    method: 'check_profile',
+    params: ['path'],
+    expect: { '': {} }
+});
+
+const callMomoFormatProfile = rpc.declare({
+    object: 'luci.momo',
+    method: 'format_profile',
+    params: ['path'],
     expect: { '': {} }
 });
 
@@ -130,8 +144,16 @@ return baseclass.extend({
         return callMomoProfile(defaults);
     },
 
-    updateSingbox: function (version) {
-        return callMomoUpdateSingbox(version);
+    updateSingbox: function (version, mirror) {
+        return callMomoUpdateSingbox(version, mirror || 'auto');
+    },
+
+    checkProfile: function (path) {
+        return callMomoCheckProfile(path || '/tmp/momo_editor.json');
+    },
+
+    formatProfile: function (path) {
+        return callMomoFormatProfile(path || '/tmp/momo_editor.json');
     },
 
     updateSubscription: function (section_id) {

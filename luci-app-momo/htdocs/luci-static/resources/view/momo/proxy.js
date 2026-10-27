@@ -48,6 +48,9 @@ return view.extend({
         o = s.taboption('proxy', form.Flag, 'fake_ip_ping_hijack', _('Fake-IP Ping Hijack'));
         o.rmempty = false;
 
+        o = s.taboption('proxy', form.Flag, 'disable_quic', _('Disable QUIC (Reject UDP 443)'));
+        o.rmempty = false;
+
         o = s.taboption('proxy', form.ListValue, 'tcp_mode', _('TCP Mode'));
         o.optional = true;
         o.placeholder = _('Disable');

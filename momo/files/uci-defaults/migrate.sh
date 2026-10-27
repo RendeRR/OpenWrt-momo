@@ -58,6 +58,8 @@ singbox_api_ui_path=$(uci -q get momo.mixin.singbox_api_ui_path); [ -z "$singbox
 singbox_api_listen=$(uci -q get momo.mixin.singbox_api_listen); [ -z "$singbox_api_listen" ] && uci set momo.mixin.singbox_api_listen='0.0.0.0:9091'
 singbox_api_tls_enabled=$(uci -q get momo.mixin.singbox_api_tls_enabled); [ -z "$singbox_api_tls_enabled" ] && uci set momo.mixin.singbox_api_tls_enabled='0'
 
+proxy_disable_quic=$(uci -q get momo.proxy.disable_quic); [ -z "$proxy_disable_quic" ] && uci set momo.proxy.disable_quic=0
+
 # commit
 uci commit momo
 

@@ -707,3 +707,57 @@ msgstr "自定义绕过 IPv4"
 
 msgid "Bypass Custom IPv6"
 msgstr "自定义绕过 IPv6"
+
+msgid "Disable QUIC (Reject UDP 443)"
+msgstr "禁用 QUIC (拦截 UDP 443)"
+
+msgid "Profile Tools"
+msgstr "配置工具"
+
+msgid "Test Config (sing-box check)"
+msgstr "测试配置 (sing-box check)"
+
+msgid "Format JSON (sing-box format)"
+msgstr "格式化 JSON (sing-box format)"
+
+msgid "Sing-Box Profile Check"
+msgstr "Sing-Box 配置检查"
+
+msgid "Sing-Box Format Failed"
+msgstr "Sing-Box 格式化失败"
+
+msgid "Editor content is empty."
+msgstr "编辑器内容为空。"
+
+msgid "Configuration is valid."
+msgstr "配置有效。"
+
+msgid "Check failed."
+msgstr "检查失败。"
+
+msgid "Format failed."
+msgstr "格式化失败。"
+
+msgid "Auto (GitHub + Mirror Fallback)"
+msgstr "自动 (GitHub + 镜像回退)"
+
+msgid "Mirror (ghfast.top)"
+msgstr "镜像 (ghfast.top)"
+
+msgid "Mirror (gh-proxy.com)"
+msgstr "镜像 (gh-proxy.com)"
+
+msgid "GitHub Direct"
+msgstr "GitHub 直连"
+
+msgid "Stable Releases"
+msgstr "稳定版 (Stable)"
+
+msgid "Pre-releases (Beta / Alpha)"
+msgstr "预览版 (Beta / Alpha)"
+
+msgid "Latest"
+msgstr "最新"
+
+msgid "Installed"
+msgstr "已安装"

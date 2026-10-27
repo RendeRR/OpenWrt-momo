@@ -100,40 +100,94 @@ return view.extend({
 
         o = s.option(form.DummyValue, '_update_widget', '');
         o.renderWidget = function(section_id) {
-            let select = E('select', { id: 'singbox_version_select', style: 'width: 250px; margin-right: 10px;', class: 'cbi-input-select' }, [
+            let select = E('select', { id: 'singbox_version_select', style: 'width: 260px; margin-right: 8px;', class: 'cbi-input-select' }, [
                 E('option', { value: '' }, _('Loading versions...'))
             ]);
 
-            fetch('https://api.github.com/repos/SagerNet/sing-box/releases')
-                .then(res => res.json())
-                .then(releases => {
-                    select.innerHTML = '';
-                    if (Array.isArray(releases) && releases.length > 0) {
-                        releases.forEach(r => {
-                            if (r.tag_name) {
-                                select.appendChild(E('option', { value: r.tag_name }, r.tag_name));
-                            }
-                        });
-                    } else {
-                        select.appendChild(E('option', { value: '' }, _('No versions found')));
+            let mirrorSelect = E('select', { id: 'singbox_mirror_select', style: 'width: 220px; margin-right: 8px;', class: 'cbi-input-select' }, [
+                E('option', { value: 'auto' }, _('Auto (GitHub + Mirror Fallback)')),
+                E('option', { value: 'ghfast' }, _('Mirror (ghfast.top)')),
+                E('option', { value: 'ghproxy' }, _('Mirror (gh-proxy.com)')),
+                E('option', { value: 'direct' }, _('GitHub Direct'))
+            ]);
+
+            const populateReleases = function(releases) {
+                select.innerHTML = '';
+                if (!Array.isArray(releases) || releases.length === 0) {
+                    select.appendChild(E('option', { value: '' }, _('No versions found')));
+                    return;
+                }
+
+                const stableGroup = E('optgroup', { label: _('Stable Releases') });
+                const prereleaseGroup = E('optgroup', { label: _('Pre-releases (Beta / Alpha)') });
+                let stableCount = 0;
+                let prereleaseCount = 0;
+                let defaultSelectedValue = '';
+
+                releases.forEach(function(r) {
+                    if (!r || !r.tag_name) return;
+                    const tag = r.tag_name;
+                    const cleanVer = tag.replace(/^v/, '');
+                    const isPre = Boolean(r.prerelease || tag.indexOf('-') !== -1);
+                    const isInstalled = Boolean(coreVersion && cleanVer === coreVersion.trim());
+
+                    let label = tag;
+                    if (!isPre && stableCount === 0) {
+                        label += ' (' + _('Latest') + ')';
+                        defaultSelectedValue = tag;
                     }
+                    if (isInstalled) {
+                        label += ' ✓ [' + _('Installed') + ']';
+                    }
+
+                    const opt = E('option', { value: tag }, label);
+                    if (isPre) {
+                        prereleaseGroup.appendChild(opt);
+                        prereleaseCount++;
+                    } else {
+                        stableGroup.appendChild(opt);
+                        stableCount++;
+                    }
+                });
+
+                if (stableCount > 0) select.appendChild(stableGroup);
+                if (prereleaseCount > 0) select.appendChild(prereleaseGroup);
+
+                if (defaultSelectedValue) {
+                    select.value = defaultSelectedValue;
+                }
+            };
+
+            const apiUrl = 'https://api.github.com/repos/SagerNet/sing-box/releases?per_page=40';
+            fetch(apiUrl)
+                .then(function(res) {
+                    if (!res.ok) throw new Error('GitHub API error');
+                    return res.json();
                 })
-                .catch(() => {
-                    select.innerHTML = '';
-                    select.appendChild(E('option', { value: '' }, _('Failed to load versions')));
+                .then(populateReleases)
+                .catch(function() {
+                    fetch('https://ghfast.top/' + apiUrl)
+                        .then(function(res) { return res.json(); })
+                        .then(populateReleases)
+                        .catch(function() {
+                            select.innerHTML = '';
+                            select.appendChild(E('option', { value: '' }, _('Failed to load versions')));
+                        });
                 });
 
             let btn = E('button', {
                 class: 'cbi-button cbi-button-action',
                 click: function(ev) {
                     const rawVersion = document.getElementById('singbox_version_select').value;
+                    const mirror = document.getElementById('singbox_mirror_select').value || 'auto';
                     const version = rawVersion.replace(/^v/, '');
+                    if (!version) return;
 
                     ui.showModal(_('Updating Sing-Box'), [
                         E('p', { class: 'spinning' }, _('Downloading and installing, please wait...'))
                     ]);
 
-                    return momo.updateSingbox(version).then((res) => {
+                    return momo.updateSingbox(version, mirror).then((res) => {
                         ui.showModal(_('Updating Sing-Box'), [
                             E('pre', { style: 'white-space: pre-wrap' }, res.result || res),
                             E('div', { class: 'right' }, [
@@ -151,7 +205,7 @@ return view.extend({
                 }
             }, _('Install'));
 
-            return E('div', { style: 'display: flex; align-items: center;' }, [ select, btn ]);
+            return E('div', { style: 'display: flex; align-items: center; flex-wrap: wrap; gap: 6px;' }, [ select, mirrorSelect, btn ]);
         };
 
         s = m.section(form.NamedSection, 'config', 'config', _('App Config'));

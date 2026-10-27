@@ -57,17 +57,72 @@ const methods = {
 		}
 	},
 	update_singbox: {
-		args: { version: 'version' },
+		args: { version: 'version', mirror: 'mirror' },
 		call: function(req) {
 			const version = req.args?.version;
+			const mirror = req.args?.mirror ?? 'auto';
 			if (!version || !match(version, /^[a-zA-Z0-9._-]+$/)) return { result: "Invalid version specified" };
-			const process = popen(`{ cd /tmp && curl -fsSL https://raw.githubusercontent.com/SagerNet/sing-box/refs/heads/testing/docs/installation/tools/install.sh | sh -s -- --version ` + version + ` && /etc/init.d/momo restart; } 2>&1`);
+
+			const raw_url = 'https://raw.githubusercontent.com/SagerNet/sing-box/refs/heads/testing/docs/installation/tools/install.sh';
+			let cmd = '';
+
+			if (mirror == 'ghfast') {
+				cmd = `{ cd /tmp && curl -fsSL --connect-timeout 15 -o singbox_install.sh "https://ghfast.top/${raw_url}" && sed -i 's|https://github.com/|https://ghfast.top/https://github.com/|g' singbox_install.sh && sh singbox_install.sh --version ${version} && rm -f singbox_install.sh && /etc/init.d/momo restart; } 2>&1`;
+			} else if (mirror == 'ghproxy') {
+				cmd = `{ cd /tmp && curl -fsSL --connect-timeout 15 -o singbox_install.sh "https://gh-proxy.com/${raw_url}" && sed -i 's|https://github.com/|https://gh-proxy.com/https://github.com/|g' singbox_install.sh && sh singbox_install.sh --version ${version} && rm -f singbox_install.sh && /etc/init.d/momo restart; } 2>&1`;
+			} else if (mirror == 'direct') {
+				cmd = `{ cd /tmp && curl -fsSL --connect-timeout 15 "${raw_url}" | sh -s -- --version ${version} && /etc/init.d/momo restart; } 2>&1`;
+			} else {
+				cmd = `{ cd /tmp && (curl -fsSL --connect-timeout 10 -o singbox_install.sh "${raw_url}" || curl -fsSL --connect-timeout 15 -o singbox_install.sh "https://ghfast.top/${raw_url}" || curl -fsSL --connect-timeout 15 -o singbox_install.sh "https://gh-proxy.com/${raw_url}") && (sh singbox_install.sh --version ${version} || (echo "Direct GitHub download failed, retrying via mirror (ghfast.top)..." && sed 's|https://github.com/|https://ghfast.top/https://github.com/|g' singbox_install.sh > singbox_install_mirror.sh && sh singbox_install_mirror.sh --version ${version}) || (echo "Retrying via backup mirror (gh-proxy.com)..." && sed 's|https://github.com/|https://gh-proxy.com/https://github.com/|g' singbox_install.sh > singbox_install_mirror.sh && sh singbox_install_mirror.sh --version ${version})) && rm -f singbox_install.sh singbox_install_mirror.sh && /etc/init.d/momo restart; } 2>&1`;
+			}
+
+			const process = popen(cmd);
 			let output = '';
 			if (process) {
 				output = process.read('all');
 				process.close();
 			}
 			return { result: output };
+		}
+	},
+	check_profile: {
+		args: { path: 'path' },
+		call: function(req) {
+			const path = req.args?.path ?? '/tmp/momo_editor.json';
+			if (!match(path, /^\/(etc\/momo\/(profiles|subscriptions|run)\/[a-zA-Z0-9._-]+|tmp\/momo_editor)\.json$/)) {
+				return { valid: false, output: 'Invalid profile path' };
+			}
+			const process = popen(`/usr/bin/sing-box check -D /etc/momo/run -c '${path}' 2>&1`);
+			let output = '';
+			let code = -1;
+			if (process) {
+				output = trim(process.read('all'));
+				code = process.close();
+			}
+			return {
+				valid: code == 0,
+				output: output || (code == 0 ? 'Configuration check passed (valid).' : 'Check failed.')
+			};
+		}
+	},
+	format_profile: {
+		args: { path: 'path' },
+		call: function(req) {
+			const path = req.args?.path ?? '/tmp/momo_editor.json';
+			if (!match(path, /^\/(etc\/momo\/(profiles|subscriptions|run)\/[a-zA-Z0-9._-]+|tmp\/momo_editor)\.json$/)) {
+				return { valid: false, output: 'Invalid profile path' };
+			}
+			const process = popen(`/usr/bin/sing-box format -D /etc/momo/run -c '${path}' -w 2>&1`);
+			let output = '';
+			let code = -1;
+			if (process) {
+				output = trim(process.read('all'));
+				code = process.close();
+			}
+			return {
+				valid: code == 0,
+				output: output || (code == 0 ? 'Configuration formatted.' : 'Format failed.')
+			};
 		}
 	},
 	api: {

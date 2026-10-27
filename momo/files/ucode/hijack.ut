@@ -64,6 +64,7 @@
 	const ipv4_proxy = uci_bool(uci.get('momo', 'proxy', 'ipv4_proxy'));
 	const ipv6_proxy = uci_bool(uci.get('momo', 'proxy', 'ipv6_proxy'));
 	const fake_ip_ping_hijack = uci_bool(uci.get('momo', 'proxy', 'fake_ip_ping_hijack'));
+	const disable_quic = uci_bool(uci.get('momo', 'proxy', 'disable_quic'));
 	const tcp_mode = uci.get('momo', 'proxy', 'tcp_mode');
 	const udp_mode = uci.get('momo', 'proxy', 'udp_mode');
 
@@ -570,6 +571,9 @@ table inet momo {
 		{% for (let fwmark in bypass_fwmark): %}
 		meta mark & {{ fwmark.mask }} == {{ fwmark.mark }} counter return
 		{% endfor %}
+		{% if (disable_quic): %}
+		meta nfproto @proxy_nfproto meta l4proto udp th dport 443 counter drop
+		{% endif %}
 		meta l4proto vmap { tcp: {% if (tcp_mode == 'tproxy'): %} jump router_tproxy {% elif (tcp_mode == 'tun'): %} jump router_tun {% else %} continue {% endif %}, udp: {% if (udp_mode == 'tproxy'): %} jump router_tproxy {% elif (udp_mode == 'tun'): %} jump router_tun {% else %} continue {% endif %} }
 	}
 
@@ -635,6 +639,9 @@ table inet momo {
 		{% for (let fwmark in bypass_fwmark): %}
 		meta mark & {{ fwmark.mask }} == {{ fwmark.mark }} counter return
 		{% endfor %}
+		{% if (disable_quic): %}
+		iifname @lan_inbound_device meta nfproto @proxy_nfproto meta l4proto udp th dport 443 counter drop
+		{% endif %}
 		iifname @lan_inbound_device meta l4proto vmap { tcp: {% if (tcp_mode == 'tproxy'): %} jump lan_tproxy {% elif (tcp_mode == 'tun'): %} jump lan_tun {% else %} continue {% endif %}, udp: {% if (udp_mode == 'tproxy'): %} jump lan_tproxy {% elif (udp_mode == 'tun'): %} jump lan_tun {% else %} continue {% endif %} }
 	}
 	{% endif %}

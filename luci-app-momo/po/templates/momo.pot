@@ -700,3 +700,57 @@ msgstr ""
 
 msgid "Bypass Custom IPv6"
 msgstr ""
+
+msgid "Disable QUIC (Reject UDP 443)"
+msgstr ""
+
+msgid "Profile Tools"
+msgstr ""
+
+msgid "Test Config (sing-box check)"
+msgstr ""
+
+msgid "Format JSON (sing-box format)"
+msgstr ""
+
+msgid "Sing-Box Profile Check"
+msgstr ""
+
+msgid "Sing-Box Format Failed"
+msgstr ""
+
+msgid "Editor content is empty."
+msgstr ""
+
+msgid "Configuration is valid."
+msgstr ""
+
+msgid "Check failed."
+msgstr ""
+
+msgid "Format failed."
+msgstr ""
+
+msgid "Auto (GitHub + Mirror Fallback)"
+msgstr ""
+
+msgid "Mirror (ghfast.top)"
+msgstr ""
+
+msgid "Mirror (gh-proxy.com)"
+msgstr ""
+
+msgid "GitHub Direct"
+msgstr ""
+
+msgid "Stable Releases"
+msgstr ""
+
+msgid "Pre-releases (Beta / Alpha)"
+msgstr ""
+
+msgid "Latest"
+msgstr ""
+
+msgid "Installed"
+msgstr ""

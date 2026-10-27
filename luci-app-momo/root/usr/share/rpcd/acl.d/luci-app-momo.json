@@ -11,6 +11,7 @@
                 "/etc/momo/profiles/*.json": ["read"],
                 "/etc/momo/subscriptions/*.json": ["read"],
                 "/etc/momo/run/config.json": ["read"],
+                "/tmp/momo_editor.json": ["read"],
                 "/var/log/momo/*.log": ["read"],
                 "/tmp/log/momo/*.log": ["read"]
             }
@@ -18,12 +19,13 @@
         "write": {
             "uci": [ "momo" ],
             "ubus": {
-                "luci.momo": [ "update_singbox" ]
+                "luci.momo": [ "update_singbox", "check_profile", "format_profile" ]
             },
             "file": {
                 "/etc/momo/profiles/*.json": ["write"],
                 "/etc/momo/subscriptions/*.json": ["write"],
                 "/etc/momo/run/config.json": ["write"],
+                "/tmp/momo_editor.json": ["write"],
                 "/var/log/momo/*.log": ["write"],
                 "/tmp/log/momo/*.log": ["write"]
             }
