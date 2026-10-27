@@ -246,6 +246,9 @@ jobs:
             # /OpenWrt-momo./file -> /OpenWrt-momo/file
             sed -i "s|${BASE}\./|${BASE}/|g" index.html
 
+            # Remove the root "." line from the tree
+            sed -i '/<a href="[^"]*">\.<\/a><br>/d' index.html
+
             # Hide the tree footer
             sed -i 's|</head>|<style>hr, .VERSION { display: none; }</style></head>|' index.html
           )
