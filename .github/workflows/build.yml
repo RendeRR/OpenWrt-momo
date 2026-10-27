@@ -76,6 +76,9 @@ jobs:
             exit 1
           fi
 
+          # Log SDK identity to see how often the snapshot SDK changes
+          echo "SDK sha256: ${EXPECTED_SHA} ($(date -u '+%F %H:%M') UTC)"
+
           mkdir -p openwrt-sdk
           zstd -dc sdk.tar.zst | tar -x --strip-components=1 -C openwrt-sdk
           rm -f sdk.tar.zst
@@ -130,7 +133,7 @@ jobs:
             >> feeds.conf.default
 
           # Only the feeds we actually need (base: zlib/mbedtls/firewall4/iproute2,
-          # packages: golang + curl + deps, luci: luci.mk/luci-base)
+          # packages: curl + deps, luci: luci.mk/luci-base)
           ./scripts/feeds update base packages luci custommomo
           ./scripts/feeds install -a -p custommomo
 
@@ -161,8 +164,8 @@ jobs:
               || { echo "Dependency not selected: ${pkg}"; exit 1; }
           done
 
-      # Downloaded sources (Go modules etc.) are content-addressed, so a
-      # stale cache is safe: restore-keys fall back to the latest one.
+      # Downloaded sources are content-addressed, so a stale cache is safe:
+      # restore-keys fall back to the latest one.
       - name: Cache downloaded sources
         uses: actions/cache@v4
         with:
@@ -231,13 +234,19 @@ jobs:
           done
           cp openwrt-sdk/key-build.pub site/custom-feed.pem
 
-          # Generate HTML file tree with fixed paths, hidden JSONs, and hidden footer
+          # Generate an HTML file tree for the feed
           (
             cd site
-            # -H добавляет префикс репозитория в ссылки, -I скрывает index.html и все .json файлы
-            tree -H '/OpenWrt-momo' -T "Momo's Feed" --noreport --charset utf-8 -I "index.html|*.json" -o index.html
-            
-            # Скрываем блок футера tree через внедрение CSS-стиля в <head> сгенерированного файла
+            BASE="/${GITHUB_REPOSITORY#*/}"
+
+            tree -H "${BASE}" -T "Momo's Feed" --noreport --charset utf-8 \
+              -I "index.html|*.json" -o index.html
+
+            # Some tree versions glue the root dir name "." to baseHREF:
+            # /OpenWrt-momo./file -> /OpenWrt-momo/file
+            sed -i "s|${BASE}\./|${BASE}/|g" index.html
+
+            # Hide the tree footer
             sed -i 's|</head>|<style>hr, .VERSION { display: none; }</style></head>|' index.html
           )
 
