@@ -36,7 +36,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends \
             build-essential gawk gettext git libncurses-dev libssl-dev \
-            python3-setuptools rsync unzip wget xz-utils zlib1g-dev zstd
+            python3-setuptools rsync tree unzip wget xz-utils zlib1g-dev zstd
 
       - name: Download OpenWrt SDK
         id: sdk
@@ -230,6 +230,12 @@ jobs:
             cp -a "${dir}" "site/${arch}/"
           done
           cp openwrt-sdk/key-build.pub site/custom-feed.pem
+
+          # Generate HTML file tree for the root page
+          (
+            cd site
+            tree -H '.' -T "Momo's Feed" --noreport --charset utf-8 -I "index.html" -o index.html
+          )
 
           find site -maxdepth 3 | sort
 
