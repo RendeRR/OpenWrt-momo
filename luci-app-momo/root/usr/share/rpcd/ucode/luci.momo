@@ -99,6 +99,10 @@ const methods = {
 				output = trim(process.read('all'));
 				code = process.close();
 			}
+			output = replace(output, /\x1b\[[0-9;]*[a-zA-Z]/g, '');
+			output = replace(output, /\[[0-9;]+m/g, '');
+			output = replace(output, /\[[0-9]{4}\]\s*/g, ': ');
+			output = replace(output, ' at /tmp/momo_editor.json', '');
 			return {
 				valid: code == 0,
 				output: output || (code == 0 ? 'Configuration check passed (valid).' : 'Check failed.')
@@ -119,6 +123,10 @@ const methods = {
 				output = trim(process.read('all'));
 				code = process.close();
 			}
+			output = replace(output, /\x1b\[[0-9;]*[a-zA-Z]/g, '');
+			output = replace(output, /\[[0-9;]+m/g, '');
+			output = replace(output, /\[[0-9]{4}\]\s*/g, ': ');
+			output = replace(output, ' at /tmp/momo_editor.json', '');
 			return {
 				valid: code == 0,
 				output: output || (code == 0 ? 'Configuration formatted.' : 'Format failed.')

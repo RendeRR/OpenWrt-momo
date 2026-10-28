@@ -55,6 +55,14 @@ return view.extend({
                 return m.lookupOption('_file_content', section_id)[0].getUIElement(section_id);
             };
 
+            const cleanOutput = function (str) {
+                return String(str || '')
+                    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+                    .replace(/\[[0-9;]+m/g, '')
+                    .replace(/\[[0-9]{4}\]\s*/g, ': ')
+                    .replace(/\s+at\s+\/tmp\/momo_editor\.json/g, '');
+            };
+
             const checkBtn = E('button', {
                 class: 'cbi-button cbi-button-action',
                 style: 'margin-right: 8px;',
@@ -69,10 +77,11 @@ return view.extend({
                         return momo.checkProfile(tmpPath);
                     }).then(function (res) {
                         const valid = res && res.valid;
+                        const msg = (res && res.output) ? cleanOutput(res.output) : (valid ? _('Configuration is valid.') : _('Check failed.'));
                         ui.showModal(_('Sing-Box Profile Check'), [
                             E('pre', {
                                 style: 'white-space: pre-wrap; font-weight: bold; color: ' + (valid ? 'green;' : 'red;')
-                            }, (res && res.output) ? res.output : (valid ? _('Configuration is valid.') : _('Check failed.'))),
+                            }, msg),
                             E('div', { class: 'right' }, [
                                 E('button', { class: 'btn', click: ui.hideModal }, _('Close'))
                             ])
@@ -100,10 +109,11 @@ return view.extend({
                                 }
                             });
                         } else {
+                            const msg = (res && res.output) ? cleanOutput(res.output) : _('Format failed.');
                             ui.showModal(_('Sing-Box Format Failed'), [
                                 E('pre', {
                                     style: 'white-space: pre-wrap; color: red;'
-                                }, (res && res.output) ? res.output : _('Format failed.')),
+                                }, msg),
                                 E('div', { class: 'right' }, [
                                     E('button', { class: 'btn', click: ui.hideModal }, _('Close'))
                                 ])
