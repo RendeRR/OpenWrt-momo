@@ -7,6 +7,10 @@ on:
       - master
     paths-ignore:
       - 'README.md'
+      - 'README.zh.md'
+      - 'LICENSE'
+      - 'images/**'
+      - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch:
 
 permissions:
@@ -20,7 +24,7 @@ jobs:
   build:
     name: Compile OpenWrt Packages
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -29,23 +33,54 @@ jobs:
           path: momo-source
           fetch-depth: 1
 
-      - name: Setup Build Environment
+      - name: Validate Feed Signing Key
         run: |
           set -euo pipefail
 
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends \
-            build-essential gawk gettext git libncurses-dev libssl-dev \
-            python3-setuptools rsync tree unzip wget xz-utils zlib1g-dev zstd
+          if [[ -z "${FEED_KEY:-}" ]]; then
+            echo "FEED_KEY secret is missing."
+            exit 1
+          fi
 
-      - name: Download OpenWrt SDK
+          umask 077
+          KEY_PATH="${RUNNER_TEMP}/key-build.pem"
+          printf '%s\n' "${FEED_KEY}" > "${KEY_PATH}"
+          unset FEED_KEY
+
+          test -s "${GITHUB_WORKSPACE}/momo-source/custom-feed.pem"
+
+          openssl pkey -in "${KEY_PATH}" -check -noout
+          openssl pkey -in "${KEY_PATH}" -pubout -out "${RUNNER_TEMP}/derived-public.pem"
+
+          EXPECTED_KEY="$(
+            openssl pkey -pubin \
+              -in "${GITHUB_WORKSPACE}/momo-source/custom-feed.pem" \
+              -outform DER | sha256sum | awk '{print $1}'
+          )"
+
+          DERIVED_KEY="$(
+            openssl pkey -pubin -in "${RUNNER_TEMP}/derived-public.pem" \
+              -outform DER | sha256sum | awk '{print $1}'
+          )"
+
+          rm -f "${RUNNER_TEMP}/derived-public.pem"
+
+          if [[ "${EXPECTED_KEY}" != "${DERIVED_KEY}" ]]; then
+            echo "Public and private feed keys do not match."
+            exit 1
+          fi
+
+          echo "SIGNING_KEY=${KEY_PATH}" >> "$GITHUB_ENV"
+        env:
+          FEED_KEY: ${{ secrets.FEED_KEY }}
+
+      - name: Resolve OpenWrt SDK Metadata
         id: sdk
         run: |
           set -euo pipefail
 
           BASE_URL="https://downloads.openwrt.org/snapshots/targets/mediatek/filogic"
-
-          wget -qO sha256sums "${BASE_URL}/sha256sums"
+          wget -q -t 3 --timeout=15 -O sha256sums "${BASE_URL}/sha256sums"
 
           SDK_FILE="$(
             awk '
@@ -66,86 +101,143 @@ jobs:
             awk -v f="${SDK_FILE}" '$2 == f || $2 == "*" f {print $1; exit}' sha256sums
           )"
 
-          echo "Downloading SDK: ${SDK_FILE}"
-          wget -q "${BASE_URL}/${SDK_FILE}" -O sdk.tar.zst
-
-          ACTUAL_SHA="$(sha256sum sdk.tar.zst | awk '{print $1}')"
-
-          if [[ -z "${EXPECTED_SHA}" || "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]]; then
-            echo "SDK checksum verification failed."
+          if [[ -z "${EXPECTED_SHA}" ]]; then
+            echo "OpenWrt SDK sha256 not found."
             exit 1
           fi
 
-          # Log SDK identity to see how often the snapshot SDK changes
+          rm -f sha256sums
+
+          DEPS_HASH="$(
+            grep -hE '^(LUCI_)?DEPENDS' \
+              momo-source/momo/Makefile \
+              momo-source/luci-app-momo/Makefile \
+              | sha256sum | awk '{print $1}'
+          )"
+
+          echo "SDK file: ${SDK_FILE}"
           echo "SDK sha256: ${EXPECTED_SHA} ($(date -u '+%F %H:%M') UTC)"
+          echo "Deps hash: ${DEPS_HASH}"
 
-          mkdir -p openwrt-sdk
-          zstd -dc sdk.tar.zst | tar -x --strip-components=1 -C openwrt-sdk
-          rm -f sdk.tar.zst
+          {
+            echo "base_url=${BASE_URL}"
+            echo "sdk_file=${SDK_FILE}"
+            echo "sha=${EXPECTED_SHA}"
+            echo "deps_key=openwrt-sdk-ready-v1-${EXPECTED_SHA}-${DEPS_HASH}"
+          } >> "$GITHUB_OUTPUT"
 
-          test -x openwrt-sdk/scripts/feeds
-
-          echo "sha=${EXPECTED_SHA}" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Key, Feeds and Configuration
-        working-directory: openwrt-sdk
-        env:
-          FEED_KEY: ${{ secrets.FEED_KEY }}
+      - name: Setup Build Environment
         run: |
           set -euo pipefail
 
-          if [[ -z "${FEED_KEY:-}" ]]; then
-            echo "FEED_KEY secret is missing."
+          REQUIRED_PKGS=(
+            aria2 build-essential ccache gawk gettext git
+            libncurses-dev libssl-dev python3-setuptools
+            rsync tree unzip wget xz-utils zlib1g-dev zstd
+          )
+          MISSING_PKGS=()
+          for pkg in "${REQUIRED_PKGS[@]}"; do
+            if ! dpkg-query -W -f='${Status}' "${pkg}" 2>/dev/null | grep -q "install ok installed"; then
+              MISSING_PKGS+=("${pkg}")
+            fi
+          done
+
+          if [[ ${#MISSING_PKGS[@]} -gt 0 ]]; then
+            echo "Installing missing packages: ${MISSING_PKGS[*]}"
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends "${MISSING_PKGS[@]}"
+          else
+            echo "All required host packages are already installed."
+          fi
+
+      - name: Restore Prepared SDK Cache
+        id: sdk-ready-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: openwrt-sdk
+          key: ${{ steps.sdk.outputs.deps_key }}
+
+      - name: Cache Downloaded Sources (dl)
+        if: steps.sdk-ready-cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: dl-cache
+          key: openwrt-dl-v1-${{ steps.sdk.outputs.sha }}
+          restore-keys: |
+            openwrt-dl-v1-
+            openwrt-dl-
+
+      - name: Cache Compiler Objects (ccache)
+        if: steps.sdk-ready-cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: openwrt-ccache-filogic-v1-${{ steps.sdk.outputs.sha }}
+          restore-keys: |
+            openwrt-ccache-filogic-v1-
+
+      - name: Download and Prepare OpenWrt SDK
+        if: steps.sdk-ready-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+
+          BASE_URL="${{ steps.sdk.outputs.base_url }}"
+          SDK_FILE="${{ steps.sdk.outputs.sdk_file }}"
+          EXPECTED_SHA="${{ steps.sdk.outputs.sha }}"
+
+          echo "Downloading SDK: ${SDK_FILE}"
+          aria2c -x8 -s8 --retry-wait=3 -m 3 --console-log-level=warn \
+            -d . -o sdk.tar.zst "${BASE_URL}/${SDK_FILE}" \
+            || wget -q "${BASE_URL}/${SDK_FILE}" -O sdk.tar.zst
+
+          ACTUAL_SHA="$(sha256sum sdk.tar.zst | awk '{print $1}')"
+          if [[ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]]; then
+            echo "SDK checksum verification failed: expected ${EXPECTED_SHA}, got ${ACTUAL_SHA}."
             exit 1
           fi
 
-          umask 022
+          mkdir -p openwrt-sdk dl-cache .ccache
+          zstd -T0 -dc sdk.tar.zst | tar -x --strip-components=1 -C openwrt-sdk
+          rm -f sdk.tar.zst
 
-          printf '%s\n' "${FEED_KEY}" > key-build.pem
-          chmod 600 key-build.pem
-          unset FEED_KEY
+          rm -rf openwrt-sdk/dl
+          ln -sfn "${GITHUB_WORKSPACE}/dl-cache" openwrt-sdk/dl
 
-          test -s "${GITHUB_WORKSPACE}/momo-source/custom-feed.pem"
-          cp "${GITHUB_WORKSPACE}/momo-source/custom-feed.pem" key-build.pub
+          # Configure ccache to hash compiler binary content instead of mtime so
+          # cache hits carry over across newly rebuilt OpenWrt Snapshot SDKs.
+          cat > .ccache/ccache.conf <<'EOF'
+          max_size = 1.0G
+          compression = true
+          compiler_check = content
+          sloppiness = time_macros,file_macro
+          EOF
+          CCACHE_DIR="${GITHUB_WORKSPACE}/.ccache" ccache -z
 
-          openssl pkey -in key-build.pem -check -noout
-          openssl pkey -in key-build.pem -pubout -out derived-public.pem
+          test -x openwrt-sdk/scripts/feeds
 
-          EXPECTED_KEY="$(
-            openssl pkey -pubin \
-              -in "${GITHUB_WORKSPACE}/momo-source/custom-feed.pem" \
-              -outform DER | sha256sum | awk '{print $1}'
-          )"
+          cd openwrt-sdk
 
-          DERIVED_KEY="$(
-            openssl pkey -pubin -in derived-public.pem \
-              -outform DER | sha256sum | awk '{print $1}'
-          )"
+          # Switch from slow git.openwrt.org and full history clones to shallow
+          # GitHub mirror clones (--depth 1 via src-git).
+          sed -i \
+            -e 's|^src-git-full |src-git |g' \
+            -e 's|https://git\.openwrt\.org/openwrt/openwrt\.git|https://github.com/openwrt/openwrt.git|g' \
+            -e 's|https://git\.openwrt\.org/feed/packages\.git|https://github.com/openwrt/packages.git|g' \
+            -e 's|https://git\.openwrt\.org/project/luci\.git|https://github.com/openwrt/luci.git|g' \
+            feeds.conf.default
 
-          if [[ "${EXPECTED_KEY}" != "${DERIVED_KEY}" ]]; then
-            echo "Public and private feed keys do not match."
-            exit 1
-          fi
+          echo "src-link custommomo ${GITHUB_WORKSPACE}/momo-source" >> feeds.conf.default
 
-          rm -f derived-public.pem
-
-          echo "src-link custommomo ${GITHUB_WORKSPACE}/momo-source" \
-            >> feeds.conf.default
-
-          # Only the feeds we actually need (base: zlib/mbedtls/firewall4/iproute2,
-          # packages: curl + deps, luci: luci.mk/luci-base)
           ./scripts/feeds update base packages luci custommomo
           ./scripts/feeds install -a -p custommomo
 
-          # The SDK ships without .config: generate the default one first.
           make defconfig
 
-          # Build only the selected packages and their dependencies
-          # (no extra iproute2 variants, unrelated kmods, i18n, etc.).
-          # If a dependency ever fails to build, delete this sed line.
           sed -i -E 's/^(CONFIG_(ALL|ALL_KMODS|ALL_NONSHARED))=y/# \1 is not set/' .config
 
-          cat >> .config <<'EOF'
+          cat >> .config <<EOF
+          CONFIG_CCACHE=y
+          CONFIG_CCACHE_DIR="${GITHUB_WORKSPACE}/.ccache"
           CONFIG_SIGNED_PACKAGES=y
           CONFIG_PACKAGE_momo=m
           CONFIG_PACKAGE_luci-app-momo=m
@@ -153,55 +245,70 @@ jobs:
 
           make defconfig
 
+      - name: Refresh Custom Feed Metadata (Cache Hit)
+        if: steps.sdk-ready-cache.outputs.cache-hit == 'true'
+        working-directory: openwrt-sdk
+        run: |
+          set -euo pipefail
+
+          mkdir -p "${GITHUB_WORKSPACE}/dl-cache"
+          rm -rf dl
+          ln -sfn "${GITHUB_WORKSPACE}/dl-cache" dl
+
+          ./scripts/feeds update -i custommomo
+          ./scripts/feeds install -f -p custommomo
+          make defconfig
+
+      - name: Verify Selected Packages and Dependencies
+        working-directory: openwrt-sdk
+        run: |
+          set -euo pipefail
+
           grep -q '^CONFIG_PACKAGE_momo=m' .config
           grep -q '^CONFIG_PACKAGE_luci-app-momo=m' .config
 
-          # momo's declared dependencies must stay selected after trimming
-          # (fail in seconds here instead of minutes into the build).
           for pkg in ca-bundle curl firewall4 ip-full \
-                     kmod-inet-diag kmod-nft-socket kmod-nft-tproxy kmod-tun; do
+                     kmod-inet-diag kmod-nft-socket kmod-nft-tproxy kmod-tun kmod-dummy; do
             grep -Eq "^CONFIG_PACKAGE_${pkg}=[my]" .config \
               || { echo "Dependency not selected: ${pkg}"; exit 1; }
           done
-
-      # Downloaded sources are content-addressed, so a stale cache is safe:
-      # restore-keys fall back to the latest one.
-      - name: Cache downloaded sources
-        uses: actions/cache@v4
-        with:
-          path: openwrt-sdk/dl
-          key: openwrt-dl-${{ hashFiles('momo-source/**/Makefile') }}
-          restore-keys: |
-            openwrt-dl-
 
       - name: Compile Momo Packages
         working-directory: openwrt-sdk
         run: |
           set -euo pipefail
 
-          TARGETS="package/momo/compile package/luci-app-momo/compile"
-          KEY="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
+          cp -f "${GITHUB_WORKSPACE}/momo-source/custom-feed.pem" key-build.pub
+          rm -rf bin/packages/*/custommomo
 
-          # Quiet parallel build; on failure re-run single-threaded and verbose
-          # so the actual error is easy to find in the log.
-          make ${TARGETS} -j"$(nproc)" BUILD_KEY_APK_SEC="${KEY}" \
-            || make ${TARGETS} -j1 V=s BUILD_KEY_APK_SEC="${KEY}"
+          # Always clean momo and luci-app-momo stamps so local script/JS changes
+          # are guaranteed to be repackaged on SDK cache hits.
+          make package/momo/clean package/luci-app-momo/clean
+
+          TARGETS="package/momo/compile package/luci-app-momo/compile"
+
+          make ${TARGETS} -j"$(nproc)" BUILD_KEY_APK_SEC="${SIGNING_KEY}" \
+            || make ${TARGETS} -j1 V=s BUILD_KEY_APK_SEC="${SIGNING_KEY}"
+
+          if [[ -d "${GITHUB_WORKSPACE}/.ccache" ]]; then
+            CCACHE_DIR="${GITHUB_WORKSPACE}/.ccache" ccache -s || true
+          fi
 
       - name: Generate Feed Index
         working-directory: openwrt-sdk
         run: |
           set -euo pipefail
 
-          make package/index BUILD_KEY_APK_SEC="${GITHUB_WORKSPACE}/openwrt-sdk/key-build.pem"
+          make package/index BUILD_KEY_APK_SEC="${SIGNING_KEY}"
 
           ls bin/packages/*/custommomo/packages.adb
           test -s bin/packages/*/custommomo/packages.adb
 
-      - name: Collect and Validate Packages
+      - name: Collect Packages and Prepare GitHub Pages
         run: |
           set -euo pipefail
 
-          mkdir -p package-artifacts
+          mkdir -p package-artifacts site
 
           find openwrt-sdk/bin/packages/ -type f \
             \( -name 'momo-*.apk' -o -name 'luci-app-momo-*.apk' \
@@ -220,21 +327,13 @@ jobs:
           echo "Built packages:"
           ls -lh package-artifacts/
 
-      # Publish only our own feed (not luci/base/packages built as dependencies),
-      # keeping the same <arch>/custommomo/ layout on gh-pages.
-      - name: Prepare GitHub Pages content
-        run: |
-          set -euo pipefail
-
-          mkdir -p site
           for dir in openwrt-sdk/bin/packages/*/custommomo; do
             arch="$(basename "$(dirname "${dir}")")"
             mkdir -p "site/${arch}"
             cp -a "${dir}" "site/${arch}/"
           done
-          cp openwrt-sdk/key-build.pub site/custom-feed.pem
+          cp "${GITHUB_WORKSPACE}/momo-source/custom-feed.pem" site/custom-feed.pem
 
-          # Generate an HTML file tree for the feed
           (
             cd site
             BASE="/${GITHUB_REPOSITORY#*/}"
@@ -242,18 +341,32 @@ jobs:
             tree -H "${BASE}" -T "Momo's Feed" --noreport --charset utf-8 \
               -I "index.html|*.json" -o index.html
 
-            # Some tree versions glue the root dir name "." to baseHREF:
-            # /OpenWrt-momo./file -> /OpenWrt-momo/file
             sed -i "s|${BASE}\./|${BASE}/|g" index.html
-
-            # Remove the root "." line from the tree
             sed -i '/<a href="[^"]*">\.<\/a><br>/d' index.html
-
-            # Hide the tree footer
             sed -i 's|</head>|<style>hr, .VERSION { display: none; }</style></head>|' index.html
           )
 
           find site -maxdepth 3 | sort
+
+      - name: Clean Momo Artifacts Before Saving SDK Cache
+        if: steps.sdk-ready-cache.outputs.cache-hit != 'true'
+        working-directory: openwrt-sdk
+        run: |
+          set -euo pipefail
+
+          make package/momo/clean package/luci-app-momo/clean
+          rm -rf bin logs key-build.pub
+
+      - name: Save Prepared SDK Cache
+        if: steps.sdk-ready-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: openwrt-sdk
+          key: ${{ steps.sdk.outputs.deps_key }}
+
+      - name: Cleanup Signing Key
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/key-build.pem"
 
       - name: Generate Release Tag
         run: |
