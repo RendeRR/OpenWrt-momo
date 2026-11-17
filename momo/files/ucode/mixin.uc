@@ -50,6 +50,9 @@ if (api_listen_str) {
     let colon_idx = rindex(api_listen_str, ':');
     if (colon_idx != -1) {
         api_listen = substr(api_listen_str, 0, colon_idx);
+        if (substr(api_listen, 0, 1) == '[' && substr(api_listen, -1) == ']') {
+            api_listen = substr(api_listen, 1, length(api_listen) - 2);
+        }
         api_listen_port = +substr(api_listen_str, colon_idx + 1);
     }
 }

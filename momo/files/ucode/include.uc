@@ -1,13 +1,45 @@
 import { readfile, writefile, popen } from 'fs';
 
+const HOME_DIR = '/etc/momo';
+const PROFILES_DIR = `${HOME_DIR}/profiles`;
+const SUBSCRIPTIONS_DIR = `${HOME_DIR}/subscriptions`;
+const RUN_DIR = `${HOME_DIR}/run`;
+const RUN_PROFILE_PATH = `${RUN_DIR}/config.json`;
+const UCODE_DIR = `${HOME_DIR}/ucode`;
+const SH_DIR = `${HOME_DIR}/scripts`;
+const FIREWALL_DIR = `${HOME_DIR}/firewall`;
+const LOG_DIR = '/var/log/momo';
+const TEMP_DIR = '/var/run/momo';
+
+export const PATHS = {
+	home_dir: HOME_DIR,
+	profiles_dir: PROFILES_DIR,
+	subscriptions_dir: SUBSCRIPTIONS_DIR,
+	run_dir: RUN_DIR,
+	run_profile_path: RUN_PROFILE_PATH,
+	ucode_dir: UCODE_DIR,
+	include_uc: `${UCODE_DIR}/include.uc`,
+	hijack_ut: `${UCODE_DIR}/hijack.ut`,
+	sh_dir: SH_DIR,
+	include_sh: `${SH_DIR}/include.sh`,
+	firewall_include_sh: `${SH_DIR}/firewall_include.sh`,
+	debug_sh: `${SH_DIR}/debug.sh`,
+	firewall_dir: FIREWALL_DIR,
+	geoip_cn_nft: `${FIREWALL_DIR}/geoip_cn.nft`,
+	geoip6_cn_nft: `${FIREWALL_DIR}/geoip6_cn.nft`,
+	log_dir: LOG_DIR,
+	app_log_path: `${LOG_DIR}/app.log`,
+	core_log_path: `${LOG_DIR}/core.log`,
+	debug_log_path: `${LOG_DIR}/debug.log`,
+	temp_dir: TEMP_DIR,
+	pid_file_path: `${TEMP_DIR}/momo.pid`,
+	started_flag_path: `${TEMP_DIR}/started.flag`,
+	bridge_nf_call_iptables_flag_path: `${TEMP_DIR}/bridge_nf_call_iptables.flag`,
+	bridge_nf_call_ip6tables_flag_path: `${TEMP_DIR}/bridge_nf_call_ip6tables.flag`
+};
+
 export function get_paths() {
-	let result = {};
-	const process = popen('. /etc/momo/scripts/include.sh && get_paths');
-	if (process) {
-		result = json(process);
-		process.close();
-	}
-	return result;
+	return { ...PATHS };
 };
 
 export function uci_bool(obj) {
@@ -47,6 +79,9 @@ export function merge(target, ...sources) {
 
 export function merge_exists(target, ...sources) {
 	for (let source in sources) {
+		if (type(source) != 'object') {
+			continue;
+		}
 		for (let key in keys(source)) {
 			if (exists(target, key)) {
 				const target_value = target[key];
@@ -97,37 +132,47 @@ export function trim_all(obj) {
 };
 
 export function get_cgroups_version() {
-	return system('mount | grep -q -w "^cgroup"') == 0 ? 1 : 2;
+	const mounts = readfile('/proc/mounts') ?? '';
+	return match(mounts, /^cgroup\s/m) ? 1 : 2;
 };
 
 export function get_users() {
-	return map(split(readfile('/etc/passwd'), '\n'), (x) => split(x, ':')[0]);
+	const passwd = readfile('/etc/passwd') ?? '';
+	return map(split(passwd, '\n'), (x) => split(x, ':')[0]);
 };
 
 export function get_groups() {
-	return map(split(readfile('/etc/group'), '\n'), (x) => split(x, ':')[0]);
+	const group = readfile('/etc/group') ?? '';
+	return map(split(group, '\n'), (x) => split(x, ':')[0]);
 };
 
 export function get_cgroups() {
 	const result = [];
 	if (get_cgroups_version() == 2) {
 		const cgroup_path = '/sys/fs/cgroup/';
-		const process = popen(`find ${cgroup_path} -type d -mindepth 1`);
+		const process = popen(`find ${cgroup_path} -type d -mindepth 1 2>/dev/null`);
 		if (process) {
 			for (let line = process.read('line'); length(line); line = process.read('line')) {
 				push(result, substr(trim(line), length(cgroup_path)));
 			}
+			process.close();
 		}
 	}
 	return result;
 };
 
 export function load_profile() {
-	const paths = get_paths();
-	return json(readfile(paths.run_profile_path));
+	const content = readfile(PATHS.run_profile_path);
+	if (!content) {
+		return {};
+	}
+	try {
+		return json(content) ?? {};
+	} catch (e) {
+		return {};
+	}
 };
 
 export function save_profile(obj) {
-	const paths = get_paths();
-	return writefile(paths.run_profile_path, obj);
+	return writefile(PATHS.run_profile_path, obj);
 };

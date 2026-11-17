@@ -60,6 +60,10 @@ singbox_api_tls_enabled=$(uci -q get momo.mixin.singbox_api_tls_enabled); [ -z "
 
 proxy_disable_quic=$(uci -q get momo.proxy.disable_quic); [ -z "$proxy_disable_quic" ] && uci set momo.proxy.disable_quic=0
 
+# since v1.2.3
+mixin_cache_path=$(uci -q get momo.mixin.cache_path); [ -z "$mixin_cache_path" ] && uci set momo.mixin.cache_path='/var/run/momo/cache.db'
+proxy_nft_counter=$(uci -q get momo.proxy.nft_counter); [ -z "$proxy_nft_counter" ] && uci set momo.proxy.nft_counter=0
+
 # commit
 uci commit momo
 

@@ -44,6 +44,13 @@ const callMomoProfile = rpc.declare({
     expect: { '': {} }
 });
 
+const callMomoGetLog = rpc.declare({
+    object: 'luci.momo',
+    method: 'get_log',
+    params: ['type', 'max_bytes'],
+    expect: { '': {} }
+});
+
 const callMomoUpdateSingbox = rpc.declare({
     object: 'luci.momo',
     method: 'update_singbox',
@@ -91,9 +98,17 @@ const callMomoDebug = rpc.declare({
     expect: { '': {} }
 });
 
+let cachedPathsPromise = null;
+
 return baseclass.extend({
-    getPaths: async function () {
-        return callMomoGetPaths();
+    getPaths: function () {
+        if (!cachedPathsPromise) {
+            cachedPathsPromise = callMomoGetPaths().catch(function (err) {
+                cachedPathsPromise = null;
+                throw err;
+            });
+        }
+        return cachedPathsPromise;
     },
 
     status: async function () {
@@ -109,6 +124,9 @@ return baseclass.extend({
     },
 
     writefile: function (path, data, mode) {
+        if (!path) {
+            return Promise.resolve();
+        }
         data = (data != null) ? String(data) : '';
         mode = (mode != null) ? mode : 0o644;
 
@@ -123,7 +141,7 @@ return baseclass.extend({
         }
 
         let promise = Promise.resolve();
-        for(let offset = 0; offset < bytes.length; offset += chunkSize) {
+        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
             const chunkStart = offset;
             const chunkEnd = Math.min(offset + chunkSize, bytes.length);
             const isLastChunk = chunkEnd === bytes.length;
@@ -180,7 +198,7 @@ return baseclass.extend({
         };
         const query = new URLSearchParams(params).toString();
         const url = `http://${window.location.hostname}:${apiPort}/ui/?${query}`;
-        setTimeout(function () { window.open(url, '_blank') }, 0);
+        setTimeout(function () { window.open(url, '_blank'); }, 0);
         return Promise.resolve();
     },
 
@@ -203,7 +221,7 @@ return baseclass.extend({
         const query = new URLSearchParams(params).toString();
         const protocol = isTls ? 'https' : 'http';
         const url = `${protocol}://${window.location.hostname}:${apiPort}/${dashPath}/login.html?${query}`;
-        setTimeout(function () { window.open(url, '_blank') }, 0);
+        setTimeout(function () { window.open(url, '_blank'); }, 0);
         return Promise.resolve();
     },
 
@@ -216,27 +234,31 @@ return baseclass.extend({
         return L.resolveDefault(fs.list(paths.profiles_dir), []);
     },
 
+    getLogStat: function (type, maxBytes) {
+        return L.resolveDefault(callMomoGetLog(type, maxBytes || 131072), { content: '', size: 0, mtime: 0 });
+    },
+
     getAppLog: async function () {
-        const paths = await this.getPaths();
-        return L.resolveDefault(fs.read_direct(paths.app_log_path));
+        const res = await this.getLogStat('app');
+        return res?.content ?? '';
     },
 
     getCoreLog: async function () {
-        const paths = await this.getPaths();
-        return L.resolveDefault(fs.read_direct(paths.core_log_path));
+        const res = await this.getLogStat('core');
+        return res?.content ?? '';
     },
 
     clearAppLog: async function () {
         const paths = await this.getPaths();
-        return this.writefile(paths.app_log_path);
+        return this.writefile(paths.app_log_path, '');
     },
 
     clearCoreLog: async function () {
         const paths = await this.getPaths();
-        return this.writefile(paths.core_log_path);
+        return this.writefile(paths.core_log_path, '');
     },
 
     debug: function () {
         return callMomoDebug();
     },
-})
+});

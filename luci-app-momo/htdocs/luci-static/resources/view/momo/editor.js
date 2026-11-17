@@ -42,8 +42,13 @@ return view.extend({
             return true;
         };
         o.onchange = function (event, section_id, value) {
+            const target = m.lookupOption('_file_content', section_id)[0].getUIElement(section_id);
+            if (!value) {
+                if (target) target.setValue('');
+                return Promise.resolve();
+            }
             return L.resolveDefault(fs.read_direct(value), '').then(function (content) {
-                m.lookupOption('_file_content', section_id)[0].getUIElement(section_id).setValue(content);
+                if (target) target.setValue(content);
             });
         };
 
@@ -129,16 +134,18 @@ return view.extend({
             ]);
         };
 
-        o = s.option(form.TextValue, '_file_content',);
+        o = s.option(form.TextValue, '_file_content');
         o.rows = 25;
         o.wrap = false;
         o.write = function (section_id, formvalue) {
             const path = m.lookupOption('_file', section_id)[0].formvalue(section_id);
+            if (!path) {
+                return true;
+            }
             return momo.writefile(path, formvalue);
         };
-        o.remove = function (section_id) {
-            const path = m.lookupOption('_file', section_id)[0].formvalue(section_id);
-            return momo.writefile(path);
+        o.remove = function () {
+            return true;
         };
 
         return m.render();

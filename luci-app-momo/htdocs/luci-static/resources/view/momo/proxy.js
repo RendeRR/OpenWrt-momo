@@ -139,31 +139,31 @@ return view.extend({
 
         for (const mac in hosts) {
             const host = hosts[mac];
-            for (const ip of host.ipaddrs) {
+            for (const ip of (host.ipaddrs || [])) {
                 const hint = host.name ?? mac;
                 so.value(ip, hint ? '%s (%s)'.format(ip, hint) : ip);
-            };
-        };
+            }
+        }
 
         so = o.subsection.option(form.DynamicList, 'ip6', 'IP6');
         so.datatype = 'ip6addr';
 
         for (const mac in hosts) {
             const host = hosts[mac];
-            for (const ip of host.ip6addrs) {
+            for (const ip of (host.ip6addrs || [])) {
                 const hint = host.name ?? mac;
                 so.value(ip, hint ? '%s (%s)'.format(ip, hint) : ip);
-            };
-        };
+            }
+        }
 
         so = o.subsection.option(form.DynamicList, 'mac', 'MAC');
         so.datatype = 'macaddr';
 
         for (const mac in hosts) {
             const host = hosts[mac];
-            const hint = host.name ?? host.ipaddrs[0];
+            const hint = host.name ?? host.ipaddrs?.[0];
             so.value(mac, hint ? '%s (%s)'.format(mac, hint) : mac);
-        };
+        }
 
         so = o.subsection.option(form.Flag, 'dns', _('DNS'));
         so.rmempty = false;
@@ -216,6 +216,9 @@ return view.extend({
 
         o = s.taboption('misc', form.Value, 'tun_interval', _('TUN Interval'));
         o.datatype = 'uinteger';
+        o.rmempty = false;
+
+        o = s.taboption('misc', form.Flag, 'nft_counter', _('NFTables Rule Counters'));
         o.rmempty = false;
 
         return m.render();

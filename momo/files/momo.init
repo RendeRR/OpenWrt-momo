@@ -11,6 +11,22 @@ PROG="/usr/bin/sing-box"
 extra_command 'update_subscription' 'Update subscription by section id'
 extra_command 'clear_logs' 'Clear logs if size exceeds the limit'
 
+reload_cron() {
+	if pgrep -x crond > /dev/null 2>&1; then
+		/etc/init.d/cron reload > /dev/null 2>&1 || true
+	fi
+}
+
+cleanup_fw4_rules() {
+	local chain handles handle
+	for chain in input forward; do
+		handles=$(nft --json list chain inet fw4 "$chain" 2>/dev/null | jsonfilter -q -e "@['nftables'][*]['rule']" | jsonfilter -q -a -e "@[@['comment']='momo']" | jsonfilter -q -a -e "@[*]['handle']")
+		for handle in $handles; do
+			nft delete rule inet fw4 "$chain" handle "$handle" > /dev/null 2>&1
+		done
+	done
+}
+
 boot_func() {
 	# prepare files
 	prepare_files
@@ -49,7 +65,7 @@ start_service() {
 	log "App" "Enabled."
 	log "App" "Start."
 	# check if executable
-	if [ ! -x $PROG ]; then
+	if [ ! -x "$PROG" ]; then
 		log "App" "Core is not executable."
 		log "App" "Exit."
 		return
@@ -84,12 +100,11 @@ start_service() {
 	config_get env_go_max_procs "procd" "env_go_max_procs"
 	config_get env_go_mem_limit "procd" "env_go_mem_limit"
 	## core config
-	local redirect_inbound_tag tproxy_inbound_tag tun_inbound_tag dns_inbound_tag fake_ip_dns_server_tag
+	local redirect_inbound_tag tproxy_inbound_tag tun_inbound_tag dns_inbound_tag
 	config_get redirect_inbound_tag "core" "redirect_inbound_tag"
 	config_get tproxy_inbound_tag "core" "tproxy_inbound_tag"
 	config_get tun_inbound_tag "core" "tun_inbound_tag"
 	config_get dns_inbound_tag "core" "dns_inbound_tag"
-	config_get fake_ip_dns_server_tag "core" "fake_ip_dns_server_tag"
 	## proxy config
 	local proxy_enabled ipv4_dns_hijack ipv6_dns_hijack tcp_mode udp_mode
 	config_get_bool proxy_enabled "proxy" "enabled" 0
@@ -102,11 +117,11 @@ start_service() {
 	config_get_bool log_scheduled_clear "log" "scheduled_clear" 0
 	config_get log_scheduled_clear_cron "log" "scheduled_clear_cron"
 	# get profile
-	local profile_type; profile_type=$(echo "$profile" | cut -d ':' -f 1)
-	local profile_id; profile_id=$(echo "$profile" | cut -d ':' -f 2)
+	local profile_type="${profile%%:*}"
+	local profile_id="${profile#*:}"
 	if [ "$profile_type" = "file" ]; then
-		local profile_name; profile_name="$profile_id"
-		local profile_file; profile_file="$PROFILES_DIR/$profile_name"
+		local profile_name="$profile_id"
+		local profile_file="$PROFILES_DIR/$profile_name"
 		log "Profile" "Use file: $profile_name."
 		if [ ! -f "$profile_file" ]; then
 			log "Profile" "File not found."
@@ -115,16 +130,16 @@ start_service() {
 		fi
 		if [ "$format_profile" = 1 ]; then
 			log "Profile" "Formatting source profile..."
-			$PROG format -c "$profile_file" -w >> "$CORE_LOG_PATH" 2>&1
+			"$PROG" format -c "$profile_file" -w >> "$CORE_LOG_PATH" 2>&1
 		fi
 		cp -f "$profile_file" "$RUN_PROFILE_PATH"
 	elif [ "$profile_type" = "subscription" ]; then
-		local subscription_section; subscription_section="$profile_id"
+		local subscription_section="$profile_id"
 		local subscription_name subscription_prefer
 		config_get subscription_name "$subscription_section" "name"
 		config_get subscription_prefer "$subscription_section" "prefer" "remote"
 		log "Profile" "Use subscription: $subscription_name."
-		local subscription_file; subscription_file="$SUBSCRIPTIONS_DIR/$subscription_section.json"
+		local subscription_file="$SUBSCRIPTIONS_DIR/$subscription_section.json"
 		if [ "$subscription_prefer" = "remote" ] || [ ! -f "$subscription_file" ]; then
 			update_subscription "$subscription_section"
 		fi
@@ -135,7 +150,7 @@ start_service() {
 		fi
 		if [ "$format_profile" = 1 ]; then
 			log "Profile" "Formatting source subscription..."
-			$PROG format -c "$subscription_file" -w >> "$CORE_LOG_PATH" 2>&1
+			"$PROG" format -c "$subscription_file" -w >> "$CORE_LOG_PATH" 2>&1
 		fi
 		cp -f "$subscription_file" "$RUN_PROFILE_PATH"
 	else
@@ -150,7 +165,7 @@ start_service() {
 	fi
 	# format run profile unconditionally
 	log "Profile" "Formatting run profile..."
-	if $PROG format -c "$RUN_PROFILE_PATH" -w >> "$CORE_LOG_PATH" 2>&1; then
+	if "$PROG" format -c "$RUN_PROFILE_PATH" -w >> "$CORE_LOG_PATH" 2>&1; then
 		log "Profile" "Format passed."
 	else
 		log "Profile" "Format failed."
@@ -162,59 +177,86 @@ start_service() {
 	local singbox_api_ui_path singbox_api_listen
 	config_get singbox_api_ui_path "mixin" "singbox_api_ui_path" "dashboard"
 	config_get singbox_api_listen "mixin" "singbox_api_listen"
-	local DASH_DIR="/etc/momo/run/$singbox_api_ui_path"
+	case "$singbox_api_ui_path" in
+		""|/*|*..* ) singbox_api_ui_path="dashboard" ;;
+	esac
+	local DASH_DIR="$RUN_DIR/$singbox_api_ui_path"
 
 	if [ -n "$singbox_api_listen" ] || [ -d "$DASH_DIR" ]; then
 		mkdir -p "$DASH_DIR"
-		local ROUTER_HOSTNAME=$(uci -q get system.@system[0].hostname)
+		local ROUTER_HOSTNAME
+		ROUTER_HOSTNAME=$(uci -q get system.@system[0].hostname)
 		[ -z "$ROUTER_HOSTNAME" ] && ROUTER_HOSTNAME="Router"
+		ROUTER_HOSTNAME=$(printf '%s' "$ROUTER_HOSTNAME" | sed "s/\\\\/\\\\\\\\/g; s/'/\\\\'/g; s/</\\\\x3c/g; s/>/\\\\x3e/g")
 
-		cat << EOF > "$DASH_DIR/login.html"
+		local LOGIN_TMP="$TEMP_DIR/login.html"
+		cat << EOF > "$LOGIN_TMP"
 <!DOCTYPE html><html><head><meta charset="utf-8"><title>Logging in...</title><script>
 (function(){var p=new URLSearchParams(window.location.search);if(p.has('hostname')&&p.has('port')){var u=window.location.protocol+'//'+p.get('hostname')+':'+p.get('port'),s=p.get('secret')||'',st={servers:[],activeId:null};try{var d=localStorage.getItem('sing-box-dashboard.servers');if(d)st=JSON.parse(d)}catch(e){}var i=st.servers.findIndex(function(x){return x.url===u});if(i>=0){st.servers[i].secret=s;st.activeId=st.servers[i].id}else{var id=crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c=='x'?r:(r&0x3|0x8);return v.toString(16)});st.servers.push({id:id,name:'${ROUTER_HOSTNAME}',url:u,secret:s});st.activeId=id}try{localStorage.setItem('sing-box-dashboard.servers',JSON.stringify(st))}catch(e){}}window.location.replace('./');})();
 </script></head><body>Redirecting...</body></html>
 EOF
+		if ! cmp -s "$LOGIN_TMP" "$DASH_DIR/login.html" 2>/dev/null; then
+			mv -f "$LOGIN_TMP" "$DASH_DIR/login.html"
+		else
+			rm -f "$LOGIN_TMP"
+		fi
 		log "App" "Dashboard auto-login page generated."
 	fi
 
-	# check profile
+	# check profile in single ucode pass
 	if [ "$core_only" = 0 ] && [ "$proxy_enabled" = 1 ]; then
 		log "Profile" "Checking..."
-		if [ "$ipv4_dns_hijack" = 1 ] || [ "$ipv6_dns_hijack" = 1 ]; then
-			local dns_port; dns_port=$(jsonfilter -q -i "$RUN_PROFILE_PATH" -e "@['inbounds'][*]" | jsonfilter -q -a -e "@[@['tag']='$dns_inbound_tag']" | jsonfilter -q -a -e "@[@['type']='direct']" | jsonfilter -q -e "@['listen_port']")
-			if [ -z "$dns_port" ]; then
-				log "Profile" "Check failed."
-				log "Profile" "DNS inbound not found, should be tagged with $dns_inbound_tag and define listen_port."
-				log "App" "Exit."
-				return
-			fi
-		fi
-		if [ "$tcp_mode" = "redirect" ]; then
-			local redirect_port; redirect_port=$(jsonfilter -q -i "$RUN_PROFILE_PATH" -e "@['inbounds'][*]" | jsonfilter -q -a -e "@[@['tag']='$redirect_inbound_tag']" | jsonfilter -q -a -e "@[@['type']='redirect']" | jsonfilter -q -e "@['listen_port']")
-			if [ -z "$redirect_port" ]; then
-				log "Profile" "Check failed."
-				log "Profile" "Redirect inbound not found, should be tagged with $redirect_inbound_tag and define listen_port."
-				log "App" "Exit."
-				return
-			fi
-		fi
-		if [ "$tcp_mode" = "tproxy" ] || [ "$udp_mode" = "tproxy" ]; then
-			local tproxy_port; tproxy_port=$(jsonfilter -q -i "$RUN_PROFILE_PATH" -e "@['inbounds'][*]" | jsonfilter -q -a -e "@[@['tag']='$tproxy_inbound_tag']" | jsonfilter -q -a -e "@[@['type']='tproxy']" | jsonfilter -q -e "@['listen_port']")
-			if [ -z "$tproxy_port" ]; then
-				log "Profile" "Check failed."
-				log "Profile" "TPROXY inbound not found, should be tagged with $tproxy_inbound_tag and define listen_port."
-				log "App" "Exit."
-				return
-			fi
-		fi
-		if [ "$tcp_mode" = "tun" ] || [ "$udp_mode" = "tun" ]; then
-			local tun_device; tun_device=$(jsonfilter -q -i "$RUN_PROFILE_PATH" -e "@['inbounds'][*]" | jsonfilter -q -a -e "@[@['tag']='$tun_inbound_tag']" | jsonfilter -q -a -e "@[@['type']='tun']" | jsonfilter -q -e "@['interface_name']")
-			if [ -z "$tun_device" ]; then
-				log "Profile" "Check failed."
-				log "Profile" "TUN inbound not found, should be tagged with $tun_inbound_tag and define interface_name."
-				log "App" "Exit."
-				return
-			fi
+		local check_err
+		check_err=$(ucode -S -e '
+			import { cursor } from "uci";
+			import { uci_bool, load_profile } from "/etc/momo/ucode/include.uc";
+			const uci = cursor();
+			uci.load("momo");
+			const p = load_profile();
+			const inbounds = (type(p.inbounds) == "array") ? p.inbounds : [];
+			const dns_tag = uci.get("momo", "core", "dns_inbound_tag");
+			const redir_tag = uci.get("momo", "core", "redirect_inbound_tag");
+			const tproxy_tag = uci.get("momo", "core", "tproxy_inbound_tag");
+			const tun_tag = uci.get("momo", "core", "tun_inbound_tag");
+			const ipv4_dns = uci_bool(uci.get("momo", "proxy", "ipv4_dns_hijack"));
+			const ipv6_dns = uci_bool(uci.get("momo", "proxy", "ipv6_dns_hijack"));
+			const tcp_mode = uci.get("momo", "proxy", "tcp_mode");
+			const udp_mode = uci.get("momo", "proxy", "udp_mode");
+
+			if (ipv4_dns || ipv6_dns) {
+				const m = filter(inbounds, (x) => x.tag == dns_tag && x.type == "direct" && x.listen_port);
+				if (length(m) == 0) {
+					print(`DNS inbound not found, should be tagged with ${dns_tag} and define listen_port.`);
+					exit(1);
+				}
+			}
+			if (tcp_mode == "redirect") {
+				const m = filter(inbounds, (x) => x.tag == redir_tag && x.type == "redirect" && x.listen_port);
+				if (length(m) == 0) {
+					print(`Redirect inbound not found, should be tagged with ${redir_tag} and define listen_port.`);
+					exit(1);
+				}
+			}
+			if (tcp_mode == "tproxy" || udp_mode == "tproxy") {
+				const m = filter(inbounds, (x) => x.tag == tproxy_tag && x.type == "tproxy" && x.listen_port);
+				if (length(m) == 0) {
+					print(`TPROXY inbound not found, should be tagged with ${tproxy_tag} and define listen_port.`);
+					exit(1);
+				}
+			}
+			if (tcp_mode == "tun" || udp_mode == "tun") {
+				const m = filter(inbounds, (x) => x.tag == tun_tag && x.type == "tun" && x.interface_name);
+				if (length(m) == 0) {
+					print(`TUN inbound not found, should be tagged with ${tun_tag} and define interface_name.`);
+					exit(1);
+				}
+			}
+		')
+		if [ $? -ne 0 ]; then
+			log "Profile" "Check failed."
+			log "Profile" "$check_err"
+			log "App" "Exit."
+			return
 		fi
 		log "Profile" "Check passed."
 	fi
@@ -224,7 +266,7 @@ EOF
 		if env \
 			GOMAXPROCS="$env_go_max_procs" \
 			GOMEMLIMIT="$env_go_mem_limit" \
-			$PROG -D "$RUN_DIR" check >> "$CORE_LOG_PATH" 2>&1; then
+			"$PROG" -D "$RUN_DIR" check >> "$CORE_LOG_PATH" 2>&1; then
 			log "Profile" "Test passed."
 		else
 			log "Profile" "Test failed."
@@ -237,7 +279,7 @@ EOF
 	log "Core" "Start."
 	procd_open_instance momo
 
-	procd_set_param command /bin/sh -c "$PROG -D $RUN_DIR run --disable-color >> $CORE_LOG_PATH 2>&1"
+	procd_set_param command /bin/sh -c "exec \"$PROG\" -D \"$RUN_DIR\" run --disable-color >> \"$CORE_LOG_PATH\" 2>&1"
 	procd_set_param file "$RUN_PROFILE_PATH"
 	if [ "$fast_reload" = 1 ]; then
 		procd_set_param reload_signal HUP
@@ -256,20 +298,24 @@ EOF
 
 	procd_close_instance
 	# cron
-	## clear cron
-	if grep -q "#momo" "/etc/crontabs/root"; then
+	local cron_changed=0
+	if [ -f "/etc/crontabs/root" ] && grep -q "#momo" "/etc/crontabs/root"; then
 		log "App" "Clear cron."
 		sed -i "/#momo/d" "/etc/crontabs/root" > /dev/null 2>&1
+		cron_changed=1
 	fi
-	## add restart cron if needed
 	if [ "$scheduled_restart" = 1 ] && [ -n "$scheduled_restart_cron" ]; then
 		log "App" "Set scheduled restart."
 		echo "$scheduled_restart_cron /etc/init.d/momo restart #momo scheduled restart" >> "/etc/crontabs/root"
+		cron_changed=1
 	fi
-	## add log scheduled clear cron if needed
 	if [ "$log_scheduled_clear" = 1 ] && [ -n "$log_scheduled_clear_cron" ]; then
 		log "App" "Set log scheduled clear."
 		echo "$log_scheduled_clear_cron /etc/init.d/momo clear_logs #momo log scheduled clear" >> "/etc/crontabs/root"
+		cron_changed=1
+	fi
+	if [ "$cron_changed" = 1 ]; then
+		reload_cron
 	fi
 	# set started flag
 	touch "$STARTED_FLAG_PATH"
@@ -293,12 +339,7 @@ service_started() {
 	## app config
 	local core_only
 	config_get_bool core_only "config" "core_only" 0
-	## core
-	local tun_inbound_tag fake_ip_dns_server_tag
-	config_get tun_inbound_tag "core" "tun_inbound_tag"
-	config_get fake_ip_dns_server_tag "core" "fake_ip_dns_server_tag"
 	## proxy config
-	### general
 	local ipv4_proxy ipv6_proxy tcp_mode udp_mode tun_timeout tun_interval
 	config_get_bool ipv4_proxy "proxy" "ipv4_proxy" 0
 	config_get_bool ipv6_proxy "proxy" "ipv6_proxy" 0
@@ -320,17 +361,44 @@ service_started() {
 	config_get cgroup_name "routing" "cgroup_name" "momo"
 	config_get dummy_device "routing" "dummy_device" "momo-dummy"
 	# prepare config
-	local tproxy_enable; tproxy_enable=0
+	local tproxy_enable=0
 	if [ "$tcp_mode" = "tproxy" ] || [ "$udp_mode" = "tproxy" ]; then
 		tproxy_enable=1
 	fi
-	local tun_enable; tun_enable=0
+	local tun_enable=0
 	if [ "$tcp_mode" = "tun" ] || [ "$udp_mode" = "tun" ]; then
 		tun_enable=1
 	fi
-	local tun_device; tun_device=$(jsonfilter -q -i "$RUN_PROFILE_PATH" -e "@['inbounds'][*]" | jsonfilter -q -a -e "@[@['tag']='$tun_inbound_tag']" | jsonfilter -q -a -e "@[@['type']='tun']" | jsonfilter -q -e "@['interface_name']")
-	local fake_ip6_range; fake_ip6_range=$(jsonfilter -q -i "$RUN_PROFILE_PATH" -e "@['dns']['servers'][*]" | jsonfilter -q -a -e "@[@['tag']='$fake_ip_dns_server_tag']" | jsonfilter -q -e "@['inet6_range']")
+
 	if [ "$core_only" = 0 ]; then
+		local profile_vars tun_device fake_ip6_range
+		profile_vars=$(ucode -S -e '
+			import { cursor } from "uci";
+			import { load_profile } from "/etc/momo/ucode/include.uc";
+			const uci = cursor();
+			uci.load("momo");
+			const tun_tag = uci.get("momo", "core", "tun_inbound_tag");
+			const fip_tag = uci.get("momo", "core", "fake_ip_dns_server_tag");
+			const p = load_profile();
+			let tun_dev = "";
+			let fip6 = "";
+			for (let i in (p.inbounds ?? [])) {
+				if (i.tag == tun_tag && i.type == "tun" && i.interface_name) {
+					tun_dev = i.interface_name;
+					break;
+				}
+			}
+			for (let s in (p?.dns?.servers ?? [])) {
+				if (s.tag == fip_tag && s.inet6_range) {
+					fip6 = s.inet6_range;
+					break;
+				}
+			}
+			print(`${tun_dev}\n${fip6}`);
+		')
+		tun_device=$(printf '%s\n' "$profile_vars" | sed -n '1p')
+		fake_ip6_range=$(printf '%s\n' "$profile_vars" | sed -n '2p')
+
 		# proxy
 		log "Proxy" "Enabled."
 		# wait for tun device online
@@ -347,66 +415,76 @@ service_started() {
 			if [ "$tun_timeout" -le 0 ]; then
 				log "Proxy" "Timeout, TUN device is not online."
 				log "App" "Exit."
+				procd_kill "momo" 2>/dev/null || true
+				cleanup
 				return
 			fi
 		fi
 		# fix compatible with dockerd
 		## cgroupfs-mount
 		### when cgroupfs-mount is installed, cgroupv1 will mounted instead of cgroupv2, we need to create cgroup manually
-		if mount | grep -q -w "^cgroup"; then
+		if grep -q '^cgroup ' /proc/mounts 2>/dev/null; then
 			mkdir -p "/sys/fs/cgroup/net_cls/$cgroup_name"
 			echo "$cgroup_id" > "/sys/fs/cgroup/net_cls/$cgroup_name/net_cls.classid"
-			cat "$PID_FILE_PATH" > "/sys/fs/cgroup/net_cls/$cgroup_name/cgroup.procs"
+			if [ -f "$PID_FILE_PATH" ]; then
+				cat "$PID_FILE_PATH" > "/sys/fs/cgroup/net_cls/$cgroup_name/cgroup.procs"
+			fi
 		fi
 		## kmod-br-netfilter
 		### when kmod-br-netfilter is loaded, bridge-nf-call-iptables and bridge-nf-call-ip6tables are set to 1, we need to set them to 0 if tproxy is enabled
-		if [ "$tproxy_enable" = 1 ] && (lsmod | grep -q br_netfilter); then
+		if [ "$tproxy_enable" = 1 ] && [ -d /proc/sys/net/bridge ]; then
 			if [ "$ipv4_proxy" = 1 ]; then
-				local bridge_nf_call_iptables; bridge_nf_call_iptables=$(sysctl -e -n net.bridge.bridge-nf-call-iptables)
+				local bridge_nf_call_iptables
+				bridge_nf_call_iptables=$(sysctl -e -n net.bridge.bridge-nf-call-iptables)
 				if [ "$bridge_nf_call_iptables" = 1 ]; then
 					touch "$BRIDGE_NF_CALL_IPTABLES_FLAG_PATH"
 					sysctl -q -w net.bridge.bridge-nf-call-iptables=0
 				fi
 			fi
 			if [ "$ipv6_proxy" = 1 ]; then
-				local bridge_nf_call_ip6tables; bridge_nf_call_ip6tables=$(sysctl -e -n net.bridge.bridge-nf-call-ip6tables)
+				local bridge_nf_call_ip6tables
+				bridge_nf_call_ip6tables=$(sysctl -e -n net.bridge.bridge-nf-call-ip6tables)
 				if [ "$bridge_nf_call_ip6tables" = 1 ]; then
 					touch "$BRIDGE_NF_CALL_IP6TABLES_FLAG_PATH"
 					sysctl -q -w net.bridge.bridge-nf-call-ip6tables=0
 				fi
 			fi
 		fi
-		# ip route and rule
+		# ip route and rule (idempotent)
 		if [ "$tproxy_enable" = 1 ]; then
 			if [ "$ipv4_proxy" = 1 ]; then
-				ip -4 route add local default dev lo table "$tproxy_route_table"
+				ip -4 route replace local default dev lo table "$tproxy_route_table"
+				while ip -4 rule del table "$tproxy_route_table" > /dev/null 2>&1; do :; done
 				ip -4 rule add pref "$tproxy_rule_pref" fwmark "$tproxy_fw_mark/$tproxy_fw_mask" table "$tproxy_route_table"
 			fi
 			if [ "$ipv6_proxy" = 1 ]; then
-				ip -6 route add local default dev lo table "$tproxy_route_table"
+				ip -6 route replace local default dev lo table "$tproxy_route_table"
+				while ip -6 rule del table "$tproxy_route_table" > /dev/null 2>&1; do :; done
 				ip -6 rule add pref "$tproxy_rule_pref" fwmark "$tproxy_fw_mark/$tproxy_fw_mask" table "$tproxy_route_table"
 			fi
 		fi
 		if [ "$tun_enable" = 1 ]; then
 			if [ "$ipv4_proxy" = 1 ]; then
-				ip -4 route add unicast default dev "$tun_device" table "$tun_route_table"
+				ip -4 route replace unicast default dev "$tun_device" table "$tun_route_table"
+				while ip -4 rule del table "$tun_route_table" > /dev/null 2>&1; do :; done
 				ip -4 rule add pref "$tun_rule_pref" fwmark "$tun_fw_mark/$tun_fw_mask" table "$tun_route_table"
 			fi
 			if [ "$ipv6_proxy" = 1 ]; then
-				ip -6 route add unicast default dev "$tun_device" table "$tun_route_table"
+				ip -6 route replace unicast default dev "$tun_device" table "$tun_route_table"
+				while ip -6 rule del table "$tun_route_table" > /dev/null 2>&1; do :; done
 				ip -6 rule add pref "$tun_rule_pref" fwmark "$tun_fw_mark/$tun_fw_mask" table "$tun_route_table"
 			fi
-			$FIREWALL_INCLUDE_SH
+			"$FIREWALL_INCLUDE_SH"
 		fi
 		if [ -n "$fake_ip6_range" ]; then
-			ip link add "$dummy_device" type dummy
+			ip link show "$dummy_device" > /dev/null 2>&1 || ip link add "$dummy_device" type dummy
 			ip link set dev "$dummy_device" up
-			ip -6 route add "$fake_ip6_range" dev "$dummy_device"
+			ip -6 route replace "$fake_ip6_range" dev "$dummy_device"
 		fi
 		# hijack
 		utpl -S "$HIJACK_UT" | nft -f -
 		# check hijack
-		if nft list tables | grep -q momo; then
+		if nft list table inet momo > /dev/null 2>&1; then
 			log "Proxy" "Hijack successful."
 		else
 			log "Proxy" "Hijack failed."
@@ -441,36 +519,28 @@ cleanup() {
 	config_get tun_route_table "routing" "tun_route_table" "81"
 	config_get dummy_device "routing" "dummy_device" "momo-dummy"
 	# clear logs if needed
-	if [  "$log_clear_at_stop" = 1 ]; then
-		echo -n > "$APP_LOG_PATH"
-		echo -n > "$CORE_LOG_PATH"
+	if [ "$log_clear_at_stop" = 1 ]; then
+		: > "$APP_LOG_PATH"
+		: > "$CORE_LOG_PATH"
 		log "Log" "Logs are cleared due to clear at stop is enabled."
 	fi
 	# delete routing policy
-	ip -4 rule del table "$tproxy_route_table" > /dev/null 2>&1
-	ip -4 rule del table "$tun_route_table" > /dev/null 2>&1
-	ip -6 rule del table "$tproxy_route_table" > /dev/null 2>&1
-	ip -6 rule del table "$tun_route_table" > /dev/null 2>&1
+	while ip -4 rule del table "$tproxy_route_table" > /dev/null 2>&1; do :; done
+	while ip -4 rule del table "$tun_route_table" > /dev/null 2>&1; do :; done
+	while ip -6 rule del table "$tproxy_route_table" > /dev/null 2>&1; do :; done
+	while ip -6 rule del table "$tun_route_table" > /dev/null 2>&1; do :; done
 	# delete routing table
 	ip -4 route flush table "$tproxy_route_table" > /dev/null 2>&1
 	ip -4 route flush table "$tun_route_table" > /dev/null 2>&1
 	ip -6 route flush table "$tproxy_route_table" > /dev/null 2>&1
 	ip -6 route flush table "$tun_route_table" > /dev/null 2>&1
 	# delete dummy device
-	ip -6 link del "$dummy_device" > /dev/null 2>&1
+	ip link del "$dummy_device" > /dev/null 2>&1
 	# delete hijack
 	nft delete table inet momo > /dev/null 2>&1
-	local handles handle
-	handles=$(nft --json list table inet fw4 | jsonfilter -q -e "@['nftables'][*]['rule']" | jsonfilter -q -a -e "@[@['chain']='input']" | jsonfilter -q -a -e "@[@['comment']='momo']" | jsonfilter -q -a -e "@[*]['handle']")
-	for handle in $handles; do
-		nft delete rule inet fw4 input handle "$handle"
-	done
-	handles=$(nft --json list table inet fw4 | jsonfilter -q -e "@['nftables'][*]['rule']" | jsonfilter -q -a -e "@[@['chain']='forward']" | jsonfilter -q -a -e "@[@['comment']='momo']" | jsonfilter -q -a -e "@[*]['handle']")
-	for handle in $handles; do
-		nft delete rule inet fw4 forward handle "$handle"
-	done
+	cleanup_fw4_rules
 	# delete started flag
-	rm "$STARTED_FLAG_PATH" > /dev/null 2>&1
+	rm -f "$STARTED_FLAG_PATH"
 	# revert fix compatible with dockerd
 	## kmod-br-netfilter
 	if rm "$BRIDGE_NF_CALL_IPTABLES_FLAG_PATH" > /dev/null 2>&1; then
@@ -480,8 +550,9 @@ cleanup() {
 		sysctl -q -w net.bridge.bridge-nf-call-ip6tables=1
 	fi
 	# delete cron
-	if grep -q "#momo" "/etc/crontabs/root"; then
+	if [ -f "/etc/crontabs/root" ] && grep -q "#momo" "/etc/crontabs/root"; then
 		sed -i "/#momo/d" "/etc/crontabs/root" > /dev/null 2>&1
+		reload_cron
 	fi
 }
 
@@ -494,7 +565,7 @@ clear_logs() {
 	config_get log_scheduled_clear_size_limit "log" "scheduled_clear_size_limit" 1
 	config_get log_scheduled_clear_size_limit_unit "log" "scheduled_clear_size_limit_unit" "MB"
 	# prepare config
-	local log_scheduled_clear_size_limit_in_bytes; log_scheduled_clear_size_limit_in_bytes=0
+	local log_scheduled_clear_size_limit_in_bytes=0
 	case "$log_scheduled_clear_size_limit_unit" in
 		B)
 			log_scheduled_clear_size_limit_in_bytes=$((log_scheduled_clear_size_limit))
@@ -511,17 +582,17 @@ clear_logs() {
 	esac
 	# clear logs
 	if [ -f "$APP_LOG_PATH" ] && [ "$(wc -c < "$APP_LOG_PATH")" -ge "$log_scheduled_clear_size_limit_in_bytes" ]; then
-		echo -n > "$APP_LOG_PATH"
+		: > "$APP_LOG_PATH"
 		log "Log" "App log is cleared due to scheduled clear and exceeding size limits."
 	fi
 	if [ -f "$CORE_LOG_PATH" ] && [ "$(wc -c < "$CORE_LOG_PATH")" -ge "$log_scheduled_clear_size_limit_in_bytes" ]; then
-		echo -n > "$CORE_LOG_PATH"
+		: > "$CORE_LOG_PATH"
 		log "Log" "Core log is cleared due to scheduled clear and exceeding size limits."
 	fi
 }
 
 update_subscription() {
-	local subscription_section; subscription_section="$1"
+	local subscription_section="$1"
 	if [ -z "$subscription_section" ]; then
 		return
 	fi
@@ -533,40 +604,30 @@ update_subscription() {
 	config_get subscription_info_url "$subscription_section" "info_url"
 	config_get subscription_url "$subscription_section" "url"
 	config_get subscription_user_agent "$subscription_section" "user_agent"
-	# reset subscription info
-	uci_remove "momo" "$subscription_section" "expire" > /dev/null 2>&1
-	uci_remove "momo" "$subscription_section" "upload" > /dev/null 2>&1
-	uci_remove "momo" "$subscription_section" "download" > /dev/null 2>&1
-	uci_remove "momo" "$subscription_section" "total" > /dev/null 2>&1
-	uci_remove "momo" "$subscription_section" "used" > /dev/null 2>&1
-	uci_remove "momo" "$subscription_section" "avaliable" > /dev/null 2>&1
-	uci_remove "momo" "$subscription_section" "update" > /dev/null 2>&1
-	uci_remove "momo" "$subscription_section" "success" > /dev/null 2>&1
 	# update subscription
 	log "Profile" "Update subscription: $subscription_name."
-	local success
-	local subscription_info_header_tmpfile; subscription_info_header_tmpfile="$TEMP_DIR/$subscription_section.info.header"
-	local subscription_header_tmpfile; subscription_header_tmpfile="$TEMP_DIR/$subscription_section.header"
-	local subscription_tmpfile; subscription_tmpfile="$TEMP_DIR/$subscription_section.json"
-	local subscription_info_file
-	local subscription_file; subscription_file="$SUBSCRIPTIONS_DIR/$subscription_section.json"
+	local success=0
+	local subscription_info_header_tmpfile="$TEMP_DIR/$subscription_section.info.header"
+	local subscription_header_tmpfile="$TEMP_DIR/$subscription_section.header"
+	local subscription_tmpfile="$TEMP_DIR/$subscription_section.json"
+	local subscription_info_file=""
+	local subscription_file="$SUBSCRIPTIONS_DIR/$subscription_section.json"
 	# fetch subscription info
 	if [ -n "$subscription_info_url" ]; then
 		log "Profile" "Fetch subscription info."
 		if curl -s -f -m 120 --connect-timeout 15 --retry 3 -L -X GET -A "$subscription_user_agent" -D "$subscription_info_header_tmpfile" "$subscription_info_url" > /dev/null 2>&1; then
-			if [ ! -f "$subscription_info_file" ] && grep -q -i "subscription-userinfo:" "$subscription_info_header_tmpfile"; then
+			if grep -q -i "^subscription-userinfo:" "$subscription_info_header_tmpfile"; then
 				subscription_info_file="$subscription_info_header_tmpfile"
 			fi
 		fi
 	fi
 	# download subscription
 	log "Profile" "Download subscription."
-	if curl -s -f -m 120 --connect-timeout 15 --retry 3 -L -X GET -A "$subscription_user_agent" -D "$subscription_header_tmpfile" -o "$subscription_tmpfile" "$subscription_url" > /dev/null 2>&1; then
+	if curl -s -f -m 120 --connect-timeout 15 --retry 3 -L -X GET -A "$subscription_user_agent" -D "$subscription_header_tmpfile" -o "$subscription_tmpfile" "$subscription_url" > /dev/null 2>&1 && [ -s "$subscription_tmpfile" ]; then
 		log "Profile" "Subscription download successful."
-		if [ ! -f "$subscription_info_file" ] && grep -q -i "subscription-userinfo:" "$subscription_header_tmpfile"; then
+		if [ -z "$subscription_info_file" ] && grep -q -i "^subscription-userinfo:" "$subscription_header_tmpfile"; then
 			subscription_info_file="$subscription_header_tmpfile"
 		fi
-		log "Profile" "Subscription download successful."
 		success=1
 	else
 		log "Profile" "Subscription download failed."
@@ -575,19 +636,26 @@ update_subscription() {
 	# check if success
 	if [ "$success" = 1 ]; then
 		log "Profile" "Subscription update successful."
-		if [ -f "$subscription_info_file" ]; then
-			local subscription_expire subscription_upload subscription_download subscription_total subscription_used subscription_avaliable
-			subscription_expire=$(grep -i "subscription-userinfo: " "$subscription_info_file" | grep -i -o -E "expire=[[:digit:]]+" | cut -d '=' -f 2)
-			subscription_upload=$(grep -i "subscription-userinfo: " "$subscription_info_file" | grep -i -o -E "upload=[[:digit:]]+" | cut -d '=' -f 2)
-			subscription_download=$(grep -i "subscription-userinfo: " "$subscription_info_file" | grep -i -o -E "download=[[:digit:]]+" | cut -d '=' -f 2)
-			subscription_total=$(grep -i "subscription-userinfo: " "$subscription_info_file" | grep -i -o -E "total=[[:digit:]]+" | cut -d '=' -f 2)
+		# reset previous subscription info only on successful download
+		uci_remove "momo" "$subscription_section" "expire" > /dev/null 2>&1
+		uci_remove "momo" "$subscription_section" "upload" > /dev/null 2>&1
+		uci_remove "momo" "$subscription_section" "download" > /dev/null 2>&1
+		uci_remove "momo" "$subscription_section" "total" > /dev/null 2>&1
+		uci_remove "momo" "$subscription_section" "used" > /dev/null 2>&1
+		uci_remove "momo" "$subscription_section" "avaliable" > /dev/null 2>&1
+		if [ -n "$subscription_info_file" ] && [ -f "$subscription_info_file" ]; then
+			local userinfo_line subscription_expire subscription_upload subscription_download subscription_total subscription_used subscription_avaliable
+			userinfo_line=$(grep -i -m 1 "^subscription-userinfo:" "$subscription_info_file")
+			subscription_expire=$(printf '%s' "$userinfo_line" | grep -i -o -E "expire=[[:digit:]]+" | cut -d '=' -f 2)
+			subscription_upload=$(printf '%s' "$userinfo_line" | grep -i -o -E "upload=[[:digit:]]+" | cut -d '=' -f 2)
+			subscription_download=$(printf '%s' "$userinfo_line" | grep -i -o -E "download=[[:digit:]]+" | cut -d '=' -f 2)
+			subscription_total=$(printf '%s' "$userinfo_line" | grep -i -o -E "total=[[:digit:]]+" | cut -d '=' -f 2)
 			if [ -n "$subscription_upload" ] && [ -n "$subscription_download" ]; then
 				subscription_used=$((subscription_upload + subscription_download))
 				if [ -n "$subscription_total" ]; then
 					subscription_avaliable=$((subscription_total - subscription_used))
 				fi
 			fi
-			# update subscription info
 			if [ -n "$subscription_expire" ]; then
 				uci_set "momo" "$subscription_section" "expire" "$(date "+%Y-%m-%d %H:%M:%S" -d "@$subscription_expire")"
 			fi
@@ -609,18 +677,12 @@ update_subscription() {
 		fi
 		uci_set "momo" "$subscription_section" "update" "$(date "+%Y-%m-%d %H:%M:%S")"
 		uci_set "momo" "$subscription_section" "success" "1"
-		# update subscription file
-		rm -f "$subscription_info_header_tmpfile"
-		rm -f "$subscription_header_tmpfile"
+		rm -f "$subscription_info_header_tmpfile" "$subscription_header_tmpfile"
 		mv -f "$subscription_tmpfile" "$subscription_file"
-	elif [ "$success" = 0 ]; then
+	else
 		log "Profile" "Subscription update failed."
-		# update subscription info
 		uci_set "momo" "$subscription_section" "success" "0"
-		# remove tmpfile
-		rm -f "$subscription_info_header_tmpfile"
-		rm -f "$subscription_header_tmpfile"
-		rm -f "$subscription_tmpfile"
+		rm -f "$subscription_info_header_tmpfile" "$subscription_header_tmpfile" "$subscription_tmpfile"
 	fi
 	uci_commit "momo"
 }

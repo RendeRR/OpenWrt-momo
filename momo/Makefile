@@ -56,9 +56,17 @@ define Package/momo/install
 	$(INSTALL_DATA) $(CURDIR)/files/momo.upgrade $(1)/lib/upgrade/keep.d/momo
 endef
 
+define Package/momo/prerm
+#!/bin/sh
+if [ -z "$${IPKG_INSTROOT}" ]; then
+	/etc/init.d/momo stop > /dev/null 2>&1 || true
+	/etc/init.d/momo disable > /dev/null 2>&1 || true
+fi
+endef
+
 define Package/momo/postrm
 #!/bin/sh
-if [ -z $${IPKG_INSTROOT} ]; then
+if [ -z "$${IPKG_INSTROOT}" ]; then
 	uci -q batch <<-EOF > /dev/null
 		del firewall.momo
 		commit firewall

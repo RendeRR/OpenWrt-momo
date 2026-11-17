@@ -84,27 +84,25 @@ get_paths() {
 }
 
 format_filesize() {
-	local b; b=1
-	local kb; kb=$((b * 1024))
-	local mb; mb=$((kb * 1024))
-	local gb; gb=$((mb * 1024))
-	local tb; tb=$((gb * 1024))
-	local pb; pb=$((tb * 1024))
-	local size; size=$1
-	if [ -n "$size" ]; then
-		if [ "$size" -lt "$kb" ]; then
-			echo "$(awk "BEGIN {print $size / $b}") B"
-		elif [ "$size" -lt "$mb" ]; then
-			echo "$(awk "BEGIN {print $size / $kb}") KB"
-		elif [ "$size" -lt "$gb" ]; then
-			echo "$(awk "BEGIN {print $size / $mb}") MB"
-		elif [ "$size" -lt "$tb" ]; then
-			echo "$(awk "BEGIN {print $size / $gb}") GB"
-		elif [ "$size" -lt "$pb" ]; then
-			echo "$(awk "BEGIN {print $size / $tb}") TB"
-		else
-			echo "$(awk "BEGIN {print $size / $pb}") PB"
-		fi
+	local size="$1"
+	[ -z "$size" ] && return
+	local kb=1024
+	local mb=$((kb * 1024))
+	local gb=$((mb * 1024))
+	local tb=$((gb * 1024))
+	local pb=$((tb * 1024))
+	if [ "$size" -lt "$kb" ]; then
+		echo "${size} B"
+	elif [ "$size" -lt "$mb" ]; then
+		awk -v s="$size" -v u="$kb" 'BEGIN { printf "%.2f KB\n", s / u }'
+	elif [ "$size" -lt "$gb" ]; then
+		awk -v s="$size" -v u="$mb" 'BEGIN { printf "%.2f MB\n", s / u }'
+	elif [ "$size" -lt "$tb" ]; then
+		awk -v s="$size" -v u="$gb" 'BEGIN { printf "%.2f GB\n", s / u }'
+	elif [ "$size" -lt "$pb" ]; then
+		awk -v s="$size" -v u="$tb" 'BEGIN { printf "%.2f TB\n", s / u }'
+	else
+		awk -v s="$size" -v u="$pb" 'BEGIN { printf "%.2f PB\n", s / u }'
 	fi
 }
 

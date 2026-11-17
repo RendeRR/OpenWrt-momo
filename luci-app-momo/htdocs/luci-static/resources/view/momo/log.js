@@ -6,34 +6,56 @@
 'require poll';
 'require tools.momo as momo';
 
+function updateLogTextarea(uiElement, newContent) {
+    if (!uiElement || !uiElement.node) return;
+    const textarea = uiElement.node.querySelector('textarea') || uiElement.node.firstChild;
+    if (!textarea) {
+        uiElement.setValue(newContent);
+        return;
+    }
+    const prevScrollTop = textarea.scrollTop;
+    const wasAtBottom = (textarea.scrollHeight - textarea.clientHeight - prevScrollTop) <= 24;
+    uiElement.setValue(newContent);
+    if (wasAtBottom) {
+        textarea.scrollTop = textarea.scrollHeight;
+    } else {
+        textarea.scrollTop = prevScrollTop;
+    }
+}
+
 return view.extend({
     load: function () {
         return Promise.all([
             uci.load('momo'),
             momo.getPaths(),
-            momo.getAppLog(),
-            momo.getCoreLog()
+            momo.getLogStat('app'),
+            momo.getLogStat('core')
         ]);
     },
     render: function (data) {
         const paths = data[1];
-        const appLog = data[2];
-        const coreLog = data[3];
+        const appLogInit = data[2] || { content: '', size: 0, mtime: 0 };
+        const coreLogInit = data[3] || { content: '', size: 0, mtime: 0 };
 
-        let m, s, o;
+        const logState = {
+            app: { size: appLogInit.size, mtime: appLogInit.mtime },
+            core: { size: coreLogInit.size, mtime: coreLogInit.mtime }
+        };
+
+        let m, s, o, appLogOpt, coreLogOpt;
 
         m = new form.Map('momo');
 
         s = m.section(form.NamedSection, 'log', 'log', _('Log'));
 
         s.tab('log_config', _('Log Config'));
-        
+
         o = s.taboption('log_config', form.Flag, 'clear_at_stop', _('Clear At Stop'));
         o.rmempty = false;
-        
+
         o = s.taboption('log_config', form.Flag, 'scheduled_clear', _('Scheduled Clear'));
         o.rmempty = false;
-        
+
         o = s.taboption('log_config', form.Value, 'scheduled_clear_cron', _('Scheduled Clear Cron'));
         o.retain = true;
         o.rmempty = false;
@@ -49,6 +71,7 @@ return view.extend({
         o.retain = true;
         o.rmempty = false;
         o.depends('scheduled_clear', '1');
+        o.value('B', 'B');
         o.value('KB', 'KB');
         o.value('MB', 'MB');
         o.value('GB', 'GB');
@@ -59,31 +82,27 @@ return view.extend({
         o.inputstyle = 'negative';
         o.inputtitle = _('Clear Log');
         o.onclick = function (_, section_id) {
+            logState.app = { size: 0, mtime: 0 };
             m.lookupOption('_app_log', section_id)[0].getUIElement(section_id).setValue('');
             return momo.clearAppLog();
         };
 
-        o = s.taboption('app_log', form.TextValue, '_app_log');
-        o.rows = 25;
-        o.wrap = false;
-        o.load = function (section_id) {
-            return appLog;
+        appLogOpt = s.taboption('app_log', form.TextValue, '_app_log');
+        appLogOpt.rows = 25;
+        appLogOpt.wrap = false;
+        appLogOpt.load = function () {
+            return appLogInit.content;
         };
-        o.write = function (section_id, formvalue) {
+        appLogOpt.write = function () {
             return true;
         };
-        poll.add(L.bind(function () {
-            const option = this;
-            return L.resolveDefault(momo.getAppLog()).then(function (log) {
-                option.getUIElement('log').setValue(log);
-            });
-        }, o));
 
         o = s.taboption('app_log', form.Button, 'scroll_app_log_to_bottom');
         o.inputtitle = _('Scroll To Bottom');
         o.onclick = function (_, section_id) {
-            const element = m.lookupOption('_app_log', section_id)[0].getUIElement(section_id).node.firstChild;
-            element.scrollTop = element.scrollHeight;
+            const uiEl = m.lookupOption('_app_log', section_id)[0].getUIElement(section_id);
+            const element = uiEl?.node?.querySelector('textarea') || uiEl?.node?.firstChild;
+            if (element) element.scrollTop = element.scrollHeight;
         };
 
         s.tab('core_log', _('Core Log'));
@@ -92,32 +111,54 @@ return view.extend({
         o.inputstyle = 'negative';
         o.inputtitle = _('Clear Log');
         o.onclick = function (_, section_id) {
+            logState.core = { size: 0, mtime: 0 };
             m.lookupOption('_core_log', section_id)[0].getUIElement(section_id).setValue('');
             return momo.clearCoreLog();
         };
 
-        o = s.taboption('core_log', form.TextValue, '_core_log');
-        o.rows = 25;
-        o.wrap = false;
-        o.load = function (section_id) {
-            return coreLog;
+        coreLogOpt = s.taboption('core_log', form.TextValue, '_core_log');
+        coreLogOpt.rows = 25;
+        coreLogOpt.wrap = false;
+        coreLogOpt.load = function () {
+            return coreLogInit.content;
         };
-        o.write = function (section_id, formvalue) {
+        coreLogOpt.write = function () {
             return true;
         };
-        poll.add(L.bind(function () {
-            const option = this;
-            return L.resolveDefault(momo.getCoreLog()).then(function (log) {
-                option.getUIElement('log').setValue(log);
-            });
-        }, o));
 
         o = s.taboption('core_log', form.Button, 'scroll_core_log_to_bottom');
         o.inputtitle = _('Scroll To Bottom');
         o.onclick = function (_, section_id) {
-            const element = m.lookupOption('_core_log', section_id)[0].getUIElement(section_id).node.firstChild;
-            element.scrollTop = element.scrollHeight;
+            const uiEl = m.lookupOption('_core_log', section_id)[0].getUIElement(section_id);
+            const element = uiEl?.node?.querySelector('textarea') || uiEl?.node?.firstChild;
+            if (element) element.scrollTop = element.scrollHeight;
         };
+
+        poll.add(function () {
+            const tasks = [];
+            const appUi = appLogOpt.getUIElement('log');
+            const coreUi = coreLogOpt.getUIElement('log');
+
+            if (appUi?.node?.offsetParent !== null) {
+                tasks.push(momo.getLogStat('app').then(function (res) {
+                    if (res && (res.size !== logState.app.size || res.mtime !== logState.app.mtime)) {
+                        logState.app = { size: res.size, mtime: res.mtime };
+                        updateLogTextarea(appUi, res.content ?? '');
+                    }
+                }));
+            }
+
+            if (coreUi?.node?.offsetParent !== null) {
+                tasks.push(momo.getLogStat('core').then(function (res) {
+                    if (res && (res.size !== logState.core.size || res.mtime !== logState.core.mtime)) {
+                        logState.core = { size: res.size, mtime: res.mtime };
+                        updateLogTextarea(coreUi, res.content ?? '');
+                    }
+                }));
+            }
+
+            return Promise.all(tasks);
+        });
 
         s.tab('debug_log', _('Debug Log'));
 
@@ -126,20 +167,14 @@ return view.extend({
         o.inputtitle = _('Generate & Download');
         o.onclick = function () {
             return momo.debug().then(function () {
-                fs.read_direct(paths.debug_log_path, 'blob').then(function (data) {
-                    // create url
+                return fs.read_direct(paths.debug_log_path, 'blob').then(function (data) {
                     const url = window.URL.createObjectURL(data, { type: 'text/markdown' });
-                    // create link
                     const link = document.createElement('a');
                     link.href = url;
                     link.download = 'debug.log';
-                    // append to body
                     document.body.appendChild(link);
-                    // download
                     link.click();
-                    // remove from body
                     document.body.removeChild(link);
-                    // revoke url
                     window.URL.revokeObjectURL(url);
                 });
             });

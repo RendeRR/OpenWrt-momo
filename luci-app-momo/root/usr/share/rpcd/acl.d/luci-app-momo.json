@@ -4,10 +4,11 @@
         "read": {
             "uci": [ "momo" ],
             "ubus": {
-                "rc": [ "*" ],
-                "luci.momo": [ "*" ]
+                "rc": [ "list" ],
+                "luci.momo": [ "get_paths", "version", "profile", "get_identifiers", "get_log" ]
             },
             "file": {
+                "/etc/momo/profiles/*": ["list", "read"],
                 "/etc/momo/profiles/*.json": ["read"],
                 "/etc/momo/subscriptions/*.json": ["read"],
                 "/etc/momo/run/config.json": ["read"],
@@ -19,7 +20,8 @@
         "write": {
             "uci": [ "momo" ],
             "ubus": {
-                "luci.momo": [ "update_singbox", "check_profile", "format_profile" ]
+                "rc": [ "init" ],
+                "luci.momo": [ "update_subscription", "update_singbox", "check_profile", "format_profile", "api", "debug" ]
             },
             "file": {
                 "/etc/momo/profiles/*.json": ["write"],
