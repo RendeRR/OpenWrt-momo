@@ -678,9 +678,11 @@ table inet momo {
 		meta mark & {{ fwmark.mask }} == {{ fwmark.mark }} {{ cnt }}return
 		{% endfor %}
 		{% if (disable_quic): %}
-		# reject is valid on the output hook: the router's own apps get an
-		# immediate ICMP port-unreachable and fall back to TCP at once
-		meta nfproto @proxy_nfproto meta l4proto udp th dport 443 {{ cnt }}reject
+		# drop, not reject: this is a type route chain, and nft refuses the
+		# reject statement there - the whole table then fails to load and
+		# (fail-closed) the service does not start at all. Field-confirmed
+		# 2026-11-18 on r10 with disable_quic=1.
+		meta nfproto @proxy_nfproto meta l4proto udp th dport 443 {{ cnt }}drop
 		{% endif %}
 		meta l4proto vmap { tcp: {{ router_tcp_verdict }}, udp: {{ router_udp_verdict }} }
 	}

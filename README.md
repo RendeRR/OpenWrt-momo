@@ -49,7 +49,7 @@ Traffic routing for these destinations is handled natively at the kernel level u
 
 ## Disable QUIC (Reject UDP 443)
 
-A new **Disable QUIC (Reject UDP 443)** toggle is available under **Proxy Config**. When enabled, outgoing UDP port 443 traffic is killed at the `nftables` mangle stage (while still respecting reserved and custom bypass IP sets): traffic originating from the router itself is **rejected** (immediate ICMP port-unreachable), while LAN traffic is **dropped** — the `reject` statement is not valid on the prerouting hook, so an instant refusal is not possible there. This forces browsers and apps to fall back to TCP/TLS without hanging on throttled or unstable QUIC connections.
+A new **Disable QUIC (Reject UDP 443)** toggle is available under **Proxy Config**. When enabled, outgoing UDP port 443 traffic is dropped at the `nftables` mangle stage (while still respecting reserved and custom bypass IP sets). A `reject` variant was tried for router-originated traffic in r10 and reverted in r11: nftables refuses the `reject` statement in the mangle output (type route) chain, the whole table then fails to load, and the service does not start. This forces browsers and apps to fall back to TCP/TLS without hanging on throttled or unstable QUIC connections.
 
 ## A separate dashboard for the sing-box API
 
