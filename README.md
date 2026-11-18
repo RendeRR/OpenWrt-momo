@@ -49,7 +49,7 @@ Traffic routing for these destinations is handled natively at the kernel level u
 
 ## Disable QUIC (Reject UDP 443)
 
-A new **Disable QUIC (Reject UDP 443)** toggle is available under **Proxy Config**. When enabled, outgoing UDP port 443 traffic for proxied connections is dropped at the `nftables` mangle stage (while still respecting reserved and custom bypass IP sets). This forces browsers and apps to fall back to TCP/TLS immediately without hanging on throttled or unstable QUIC connections.
+A new **Disable QUIC (Reject UDP 443)** toggle is available under **Proxy Config**. When enabled, outgoing UDP port 443 traffic is killed at the `nftables` mangle stage (while still respecting reserved and custom bypass IP sets): traffic originating from the router itself is **rejected** (immediate ICMP port-unreachable), while LAN traffic is **dropped** — the `reject` statement is not valid on the prerouting hook, so an instant refusal is not possible there. This forces browsers and apps to fall back to TCP/TLS without hanging on throttled or unstable QUIC connections.
 
 ## A separate dashboard for the sing-box API
 
@@ -63,7 +63,7 @@ A new button has appeared on the app's main page next to the old one — **Open 
 
 A new **Sing-Box Update** block has appeared on the app page:
 - **Grouped version list**: Releases fetched from GitHub are organized into **Stable Releases** and **Pre-releases (Beta / Alpha)**, with the latest stable version selected by default and your currently installed version marked with `✓ [Installed]`.
-- **Resilient downloads & GitHub mirror fallback**: The installer script is fetched directly from the official GitHub repository into `/tmp` (RAM) instead of `sing-box.app` (which may be blocked in some regions) or root flash storage. You can choose between **Auto (GitHub + Mirror Fallback)**, **Mirror (`ghfast.top`)**, **Mirror (`gh-proxy.com`)**, or **GitHub Direct** so core updates succeed even when direct access to GitHub is throttled or unreachable.
+- **Verified downloads & GitHub mirror fallback**: No remote script is piped to a shell. The official sing-box package for the router's architecture is downloaded into `/tmp` (RAM) and **verified against the official SHA256 digest** published by the GitHub API for that release asset — if the digest cannot be obtained or does not match, the update aborts and nothing is installed. You can choose between **Auto (GitHub + Mirror Fallback)**, **Mirror (`ghfast.top`)**, **Mirror (`gh-proxy.com`)**, or **GitHub Direct** so core updates succeed even when direct access to GitHub is throttled or unreachable.
 
 ## In-editor profile validation and formatting
 

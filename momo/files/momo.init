@@ -129,10 +129,6 @@ start_service() {
 			log "App" "Exit."
 			return
 		fi
-		if [ "$format_profile" = 1 ]; then
-			log "Profile" "Formatting source profile..."
-			"$PROG" format -c "$profile_file" -w >> "$CORE_LOG_PATH" 2>&1
-		fi
 		cp -f "$profile_file" "$RUN_PROFILE_PATH"
 	elif [ "$profile_type" = "subscription" ]; then
 		local subscription_section="$profile_id"
@@ -149,15 +145,24 @@ start_service() {
 			log "App" "Exit."
 			return
 		fi
-		if [ "$format_profile" = 1 ]; then
-			log "Profile" "Formatting source subscription..."
-			"$PROG" format -c "$subscription_file" -w >> "$CORE_LOG_PATH" 2>&1
-		fi
 		cp -f "$subscription_file" "$RUN_PROFILE_PATH"
 	else
 		log "Profile" "No profile/subscription selected."
 		log "App" "Exit."
 		return
+	fi
+	# format profile before mixin, on the run copy: the user's source
+	# file/subscription is never modified, and a format error stops startup
+	if [ "$format_profile" = 1 ]; then
+		log "Profile" "Formatting profile..."
+		if "$PROG" format -c "$RUN_PROFILE_PATH" -w >> "$CORE_LOG_PATH" 2>&1; then
+			log "Profile" "Format passed."
+		else
+			log "Profile" "Format failed."
+			log "Profile" "Please check the core log to find out the problem."
+			log "App" "Exit."
+			return
+		fi
 	fi
 	# mixin
 	if [ "$core_only" = 0 ]; then
@@ -352,6 +357,13 @@ service_started() {
 	config_get udp_mode "proxy" "udp_mode"
 	config_get tun_timeout "proxy" "tun_timeout" 30
 	config_get tun_interval "proxy" "tun_interval" 1
+	# sanitize: interval 0 would spin the wait loop in service_started
+	# forever (sleep 0, counter never decreases), timeout 0 would fail
+	# TUN startup instantly even when the device is already online
+	case "$tun_interval" in ''|*[!0-9]*) tun_interval=1 ;; esac
+	[ "$tun_interval" -lt 1 ] && tun_interval=1
+	case "$tun_timeout" in ''|*[!0-9]*) tun_timeout=30 ;; esac
+	[ "$tun_timeout" -lt "$tun_interval" ] && tun_timeout="$tun_interval"
 	## routing config
 	local tproxy_fw_mark tproxy_fw_mask tun_fw_mark tun_fw_mask tproxy_rule_pref tun_rule_pref tproxy_route_table tun_route_table cgroup_id cgroup_name dummy_device
 	config_get tproxy_fw_mark "routing" "tproxy_fw_mark" "0x80"
@@ -486,14 +498,30 @@ service_started() {
 			ip link set dev "$dummy_device" up
 			ip -6 route replace "$fake_ip6_range" dev "$dummy_device"
 		fi
-		# hijack
-		utpl -S "$HIJACK_UT" | nft -f -
-		# check hijack
-		if nft list table inet momo > /dev/null 2>&1; then
+		# hijack: render to a file first so a utpl failure is not masked by
+		# the pipe (no pipefail in sh) and the ruleset stays debuggable
+		local hijack_file="$TEMP_DIR/hijack.nft"
+		local hijack_ok=1
+		if ! utpl -S "$HIJACK_UT" > "$hijack_file" 2>> "$APP_LOG_PATH"; then
+			log "Proxy" "Hijack template render failed."
+			hijack_ok=0
+		elif ! nft -f "$hijack_file" >> "$APP_LOG_PATH" 2>&1; then
+			log "Proxy" "Hijack ruleset apply failed, see the rendered file: $hijack_file"
+			hijack_ok=0
+		elif ! nft list table inet momo > /dev/null 2>&1; then
+			log "Proxy" "Hijack table missing after apply."
+			hijack_ok=0
+		fi
+		if [ "$hijack_ok" = 1 ]; then
 			log "Proxy" "Hijack successful."
 		else
+			# fail closed: a running core without hijack silently leaks all
+			# traffic past the proxy while the UI shows "Running"
 			log "Proxy" "Hijack failed."
 			log "App" "Exit."
+			procd_kill "momo" 2>/dev/null || true
+			cleanup
+			return
 		fi
 	fi
 }

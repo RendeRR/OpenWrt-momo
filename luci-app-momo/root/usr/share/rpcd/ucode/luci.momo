@@ -2,7 +2,7 @@
 
 'use strict';
 
-import { open, popen, stat } from 'fs';
+import { open, popen, stat, readfile } from 'fs';
 import { PATHS, get_paths, merge_exists, get_users, get_groups, get_cgroups, load_profile } from '/etc/momo/ucode/include.uc';
 
 function sh_quote(str) {
@@ -95,25 +95,79 @@ const methods = {
 	update_singbox: {
 		args: { version: 'version', mirror: 'mirror' },
 		call: function(req) {
-			const version = req.args?.version;
+			let version = req.args?.version;
 			const mirror = req.args?.mirror ?? 'auto';
 			if (!version || !match(version, /^[a-zA-Z0-9._-]+$/)) {
 				return { result: 'Invalid version specified' };
 			}
+			version = replace(version, /^v/, '');
+			const tag = 'v' + version;
 
-			const raw_url = 'https://raw.githubusercontent.com/SagerNet/sing-box/refs/heads/main/docs/installation/tools/install.sh';
-			const q_ver = sh_quote(version);
-			let cmd = '';
-
-			if (mirror == 'ghfast') {
-				cmd = `{ cd /tmp && curl -fsSL --connect-timeout 15 -o singbox_install.sh "https://ghfast.top/${raw_url}" && sed -i 's|https://github.com/|https://ghfast.top/https://github.com/|g' singbox_install.sh && sh singbox_install.sh --version ${q_ver} && rm -f singbox_install.sh && /etc/init.d/momo restart; } 2>&1`;
-			} else if (mirror == 'ghproxy') {
-				cmd = `{ cd /tmp && curl -fsSL --connect-timeout 15 -o singbox_install.sh "https://gh-proxy.com/${raw_url}" && sed -i 's|https://github.com/|https://gh-proxy.com/https://github.com/|g' singbox_install.sh && sh singbox_install.sh --version ${q_ver} && rm -f singbox_install.sh && /etc/init.d/momo restart; } 2>&1`;
-			} else if (mirror == 'direct') {
-				cmd = `{ cd /tmp && (curl -fsSL --connect-timeout 15 "https://sing-box.app/install.sh" || curl -fsSL --connect-timeout 15 "${raw_url}") | sh -s -- --version ${q_ver} && /etc/init.d/momo restart; } 2>&1`;
-			} else {
-				cmd = `{ cd /tmp && (curl -fsSL --connect-timeout 10 -o singbox_install.sh "https://sing-box.app/install.sh" || curl -fsSL --connect-timeout 10 -o singbox_install.sh "${raw_url}" || curl -fsSL --connect-timeout 15 -o singbox_install.sh "https://ghfast.top/${raw_url}" || curl -fsSL --connect-timeout 15 -o singbox_install.sh "https://gh-proxy.com/${raw_url}") && (sh singbox_install.sh --version ${q_ver} || (echo "Direct GitHub download failed, retrying via mirror (ghfast.top)..." && sed 's|https://github.com/|https://ghfast.top/https://github.com/|g' singbox_install.sh > singbox_install_mirror.sh && sh singbox_install_mirror.sh --version ${q_ver}) || (echo "Retrying via backup mirror (gh-proxy.com)..." && sed 's|https://github.com/|https://gh-proxy.com/https://github.com/|g' singbox_install.sh > singbox_install_mirror.sh && sh singbox_install_mirror.sh --version ${q_ver})) && rm -f singbox_install.sh singbox_install_mirror.sh && /etc/init.d/momo restart; } 2>&1`;
+			// The package is downloaded directly (no install.sh piped to sh) and
+			// verified against the official SHA256 digest published by the
+			// GitHub API for that release asset. Without a digest we abort:
+			// an unverifiable binary is never installed.
+			const os_release = readfile('/etc/os-release') ?? '';
+			const arch_match = match(os_release, /OPENWRT_ARCH="?([^"\n]+)"?/);
+			const arch = arch_match ? arch_match[1] : null;
+			if (!arch || !match(arch, /^[a-zA-Z0-9._-]+$/)) {
+				return { result: 'Cannot determine OpenWrt architecture (OPENWRT_ARCH missing in /etc/os-release). Update aborted.' };
 			}
+			const use_apk = !!stat('/usr/bin/apk');
+			const pkg = `sing-box_${version}_openwrt_${arch}.${use_apk ? 'apk' : 'ipk'}`;
+			const rel_url = `https://github.com/SagerNet/sing-box/releases/download/${tag}/${pkg}`;
+			const api_url = `https://api.github.com/repos/SagerNet/sing-box/releases/tags/${tag}`;
+
+			const mirror_prefix = { ghfast: 'https://ghfast.top/', ghproxy: 'https://gh-proxy.com/' };
+			let download_urls = [];
+			let api_urls = [];
+			if (mirror == 'ghfast' || mirror == 'ghproxy') {
+				download_urls = [mirror_prefix[mirror] + rel_url];
+				// Digest via the chosen mirror first (it may be the only reachable
+				// route), direct GitHub API as fallback. Note: a digest fetched
+				// through the same mirror that serves the file only protects
+				// against corruption, not against a malicious mirror.
+				api_urls = [mirror_prefix[mirror] + api_url, api_url];
+			} else if (mirror == 'direct') {
+				download_urls = [rel_url];
+				api_urls = [api_url];
+			} else {
+				download_urls = [rel_url, mirror_prefix.ghfast + rel_url, mirror_prefix.ghproxy + rel_url];
+				api_urls = [api_url, mirror_prefix.ghfast + api_url, mirror_prefix.ghproxy + api_url];
+			}
+
+			// fetch the official digest for our asset
+			let expected_sha = null;
+			for (let url in api_urls) {
+				const p = popen(`curl -fsSL --connect-timeout 15 ${sh_quote(url)} 2>/dev/null`);
+				if (!p) continue;
+				const body = p.read('all') ?? '';
+				const code = p.close();
+				if (code != 0 || body == '') continue;
+				let release = null;
+				try { release = json(body); } catch (e) { }
+				if (release && type(release.assets) == 'array') {
+					for (let asset in release.assets) {
+						if (asset.name == pkg && asset.digest && substr(asset.digest, 0, 7) == 'sha256:') {
+							expected_sha = substr(asset.digest, 7);
+							break;
+						}
+					}
+				}
+				if (expected_sha) break;
+			}
+			if (!expected_sha || !match(expected_sha, /^[a-f0-9]{64}$/)) {
+				return { result: `Official SHA256 digest for ${pkg} could not be obtained. Update aborted, nothing was installed.` };
+			}
+
+			const q_pkg = sh_quote(pkg);
+			const q_sha = sh_quote(expected_sha);
+			let downloads = '';
+			for (let i = 0; i < length(download_urls); i++) {
+				downloads += `${i > 0 ? ' || ' : ''}curl -fsSL --connect-timeout 15 -o ${q_pkg} ${sh_quote(download_urls[i])}`;
+			}
+			const install_cmd = use_apk ? `apk add --allow-untrusted ${q_pkg}` : `opkg install ${q_pkg}`;
+			const cmd = `{ cd /tmp && rm -f ${q_pkg} && (${downloads}) && actual=$(sha256sum ${q_pkg} | cut -d ' ' -f 1) && if [ "$actual" != ${q_sha} ]; then echo "SHA256 mismatch for ${pkg}:"; echo "  expected: ${expected_sha}"; echo "  actual:   $actual"; echo "Update aborted, nothing was installed."; rm -f ${q_pkg}; exit 1; fi && echo "SHA256 verified: $actual" && ${install_cmd} && rm -f ${q_pkg} && /etc/init.d/momo restart; } 2>&1`;
 
 			const process = popen(cmd);
 			let output = '';

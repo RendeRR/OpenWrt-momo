@@ -40,6 +40,10 @@ if [ -x "/bin/opkg" ]; then
 	fi
 	rm -f "$pub_tmp"
 elif [ -x "/usr/bin/apk" ]; then
+	# this fork's feed (see README / feed.sh)
+	rm -f /etc/apk/repositories.d/custommomo.list
+	rm -f /etc/apk/keys/custom-feed.pem
+	# legacy upstream feed, for users who migrated from it
 	if [ -f /etc/apk/repositories.d/customfeeds.list ] && grep -q momo /etc/apk/repositories.d/customfeeds.list; then
 		sed -i '/momo/d' /etc/apk/repositories.d/customfeeds.list
 	fi

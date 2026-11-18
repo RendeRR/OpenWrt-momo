@@ -1,70 +1,46 @@
 #!/bin/sh
 set -e
 
-# Momo's installer
+# Momo's installer (RendeRR fork feed)
 
 # check env (POSIX sh)
-if { [ ! -x "/bin/opkg" ] && [ ! -x "/usr/bin/apk" ]; } || [ ! -x "/sbin/fw4" ]; then
-	echo "only supports OpenWrt build with firewall4!"
+# this fork's feed is apk-only: packages are built with a snapshot SDK
+if [ ! -x "/usr/bin/apk" ] || [ ! -x "/sbin/fw4" ]; then
+	echo "only supports apk-based OpenWrt builds with firewall4!"
 	exit 1
 fi
 
 # include openwrt_release
 . /etc/openwrt_release
 
-# get branch/arch
+# the feed currently builds for aarch64_cortex-a53 only (e.g. GL.iNet Flint 2)
 arch="$DISTRIB_ARCH"
-branch=""
-case "$DISTRIB_RELEASE" in
-	*"24.10"*)
-		branch="openwrt-24.10"
-		;;
-	*"25.12"*)
-		branch="openwrt-25.12"
-		;;
-	"SNAPSHOT")
-		branch="SNAPSHOT"
-		;;
-	*)
-		echo "unsupported release: $DISTRIB_RELEASE"
-		exit 1
-		;;
-esac
-
-# feed url
-repository_url="https://momomomo.pages.dev"
-feed_url="$repository_url/$branch/$arch/momo"
-
-if [ -x "/bin/opkg" ]; then
-	echo "update feeds"
-	opkg update
-	echo "get languages"
-	languages=$(opkg list-installed 'luci-i18n-base-*' | cut -d ' ' -f 1 | cut -d '-' -f 4-)
-	echo "get latest version"
-	version_tmp="/tmp/momo.version"
-	trap 'rm -f "$version_tmp"' EXIT
-	wget -O "$version_tmp" "$feed_url/index.json"
-	echo "install ipks"
-	eval "$(jsonfilter -i "$version_tmp" -e "momo_version=@['packages']['momo']" -e "luci_app_momo_version=@['packages']['luci-app-momo']")"
-	opkg install "$feed_url/momo_${momo_version}_${arch}.ipk"
-	opkg install "$feed_url/luci-app-momo_${luci_app_momo_version}_all.ipk"
-	for lang in $languages; do
-		lang_version=$(jsonfilter -q -i "$version_tmp" -e "@['packages']['luci-i18n-momo-${lang}']" || true)
-		if [ -n "$lang_version" ]; then
-			opkg install "$feed_url/luci-i18n-momo-${lang}_${lang_version}_all.ipk" || true
-		fi
-	done
-	rm -f "$version_tmp"
-elif [ -x "/usr/bin/apk" ]; then
-	echo "update feeds"
-	apk update
-	echo "get languages"
-	languages=$(apk list --installed --manifest 'luci-i18n-base-*' | cut -d ' ' -f 1 | cut -d '-' -f 4-)
-	echo "install apks from remote repository"
-	apk add --allow-untrusted -X "$feed_url/packages.adb" momo luci-app-momo
-	for lang in $languages; do
-		apk add --allow-untrusted -X "$feed_url/packages.adb" "luci-i18n-momo-${lang}" || true
-	done
+if [ "$arch" != "aarch64_cortex-a53" ]; then
+	echo "unsupported arch: $arch (this feed only builds aarch64_cortex-a53)"
+	exit 1
 fi
+
+# feed urls (this fork, not the upstream momomomo.pages.dev feed)
+key_url="https://raw.githubusercontent.com/RendeRR/OpenWrt-momo/main/custom-feed.pem"
+feed_url="https://RendeRR.github.io/OpenWrt-momo/$arch/custommomo/packages.adb"
+
+echo "add key"
+mkdir -p /etc/apk/keys /etc/apk/repositories.d
+wget -qO /etc/apk/keys/custom-feed.pem "$key_url"
+
+echo "add feed"
+echo "$feed_url" > /etc/apk/repositories.d/custommomo.list
+
+echo "update feeds"
+apk update
+
+echo "get languages"
+languages=$(apk list --installed --manifest 'luci-i18n-base-*' 2>/dev/null | cut -d ' ' -f 1 | cut -d '-' -f 4-)
+
+echo "install apks"
+apk add momo luci-app-momo
+for lang in $languages; do
+	apk add "luci-i18n-momo-${lang}" 2>/dev/null || true
+done
 
 echo "success"

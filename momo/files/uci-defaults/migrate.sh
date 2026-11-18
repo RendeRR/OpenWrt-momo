@@ -57,6 +57,11 @@ config_clear_at_stop=$(uci -q get momo.log.clear_at_stop); [ -z "$config_clear_a
 singbox_api_ui_path=$(uci -q get momo.mixin.singbox_api_ui_path); [ -z "$singbox_api_ui_path" ] && uci set momo.mixin.singbox_api_ui_path='dashboard'
 singbox_api_listen=$(uci -q get momo.mixin.singbox_api_listen); [ -z "$singbox_api_listen" ] && uci set momo.mixin.singbox_api_listen='0.0.0.0:9091'
 singbox_api_tls_enabled=$(uci -q get momo.mixin.singbox_api_tls_enabled); [ -z "$singbox_api_tls_enabled" ] && uci set momo.mixin.singbox_api_tls_enabled='0'
+# the API listen address above is added on upgrades too, but the random secret
+# from uci-defaults/init.sh only exists on fresh installs (config.init is long
+# gone by upgrade time) — generate one here as well, or the API would come up
+# on 0.0.0.0:9091 with no authentication at all
+singbox_api_secret=$(uci -q get momo.mixin.singbox_api_secret); [ -z "$singbox_api_secret" ] && uci set momo.mixin.singbox_api_secret="$(head -c 16 /dev/urandom | hexdump -ve '1/1 "%02x"')"
 
 proxy_disable_quic=$(uci -q get momo.proxy.disable_quic); [ -z "$proxy_disable_quic" ] && uci set momo.proxy.disable_quic=0
 

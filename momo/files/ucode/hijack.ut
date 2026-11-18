@@ -612,6 +612,9 @@ table inet momo {
 		meta mark & {{ fwmark.mask }} == {{ fwmark.mark }} {{ cnt }}return
 		{% endfor %}
 		{% if (disable_quic): %}
+		# keep drop here: this chain runs on the prerouting hook, where the
+		# reject statement is not valid (input/forward/output hooks only) -
+		# a reject rule here would make the whole table fail to load
 		meta nfproto @proxy_nfproto meta l4proto udp th dport 443 {{ cnt }}drop
 		{% endif %}
 		meta l4proto vmap { tcp: {{ lan_tcp_verdict }}, udp: {{ lan_udp_verdict }} }
@@ -675,7 +678,9 @@ table inet momo {
 		meta mark & {{ fwmark.mask }} == {{ fwmark.mark }} {{ cnt }}return
 		{% endfor %}
 		{% if (disable_quic): %}
-		meta nfproto @proxy_nfproto meta l4proto udp th dport 443 {{ cnt }}drop
+		# reject is valid on the output hook: the router's own apps get an
+		# immediate ICMP port-unreachable and fall back to TCP at once
+		meta nfproto @proxy_nfproto meta l4proto udp th dport 443 {{ cnt }}reject
 		{% endif %}
 		meta l4proto vmap { tcp: {{ router_tcp_verdict }}, udp: {{ router_udp_verdict }} }
 	}
