@@ -2,7 +2,7 @@
   "version": 2,
   "architecture": "aarch64_cortex-a53",
   "packages": {
-    "luci-app-momo": "1.2.2-r8",
-    "momo": "2026.10.14-r8"
+    "luci-app-momo": "1.2.2-r9",
+    "momo": "2026.10.14-r9"
   }
 }
