@@ -1,7 +1,7 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.4",
-  "serialNumber": "urn:uuid:c50a394f-4e5b-5977-9072-0c9227556e15",
+  "serialNumber": "urn:uuid:18e95632-91ac-5ba4-bdcc-3d64f3377c73",
   "version": 1,
   "metadata": {
     "timestamp": "2026-11-17T18:16:38Z"
@@ -9,12 +9,12 @@
   "components": [
     {
       "name": "luci-app-momo",
-      "version": "1.2.2-r7",
+      "version": "1.2.2-r8",
       "type": "application"
     },
     {
       "name": "momo",
-      "version": "2026.10.14-r7",
+      "version": "2026.10.14-r8",
       "type": "application",
       "licenses": [
         {
