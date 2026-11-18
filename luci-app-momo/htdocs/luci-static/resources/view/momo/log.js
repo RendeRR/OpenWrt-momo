@@ -83,7 +83,7 @@ return view.extend({
         o.inputtitle = _('Clear Log');
         o.onclick = function (_, section_id) {
             logState.app = { size: 0, mtime: 0 };
-            m.lookupOption('_app_log', section_id)[0].getUIElement(section_id).setValue('');
+            m.lookupOption('_app_log', section_id)?.[0]?.getUIElement(section_id)?.setValue('');
             return momo.clearAppLog();
         };
 
@@ -100,7 +100,7 @@ return view.extend({
         o = s.taboption('app_log', form.Button, 'scroll_app_log_to_bottom');
         o.inputtitle = _('Scroll To Bottom');
         o.onclick = function (_, section_id) {
-            const uiEl = m.lookupOption('_app_log', section_id)[0].getUIElement(section_id);
+            const uiEl = m.lookupOption('_app_log', section_id)?.[0]?.getUIElement(section_id);
             const element = uiEl?.node?.querySelector('textarea') || uiEl?.node?.firstChild;
             if (element) element.scrollTop = element.scrollHeight;
         };
@@ -112,7 +112,7 @@ return view.extend({
         o.inputtitle = _('Clear Log');
         o.onclick = function (_, section_id) {
             logState.core = { size: 0, mtime: 0 };
-            m.lookupOption('_core_log', section_id)[0].getUIElement(section_id).setValue('');
+            m.lookupOption('_core_log', section_id)?.[0]?.getUIElement(section_id)?.setValue('');
             return momo.clearCoreLog();
         };
 
@@ -129,36 +129,10 @@ return view.extend({
         o = s.taboption('core_log', form.Button, 'scroll_core_log_to_bottom');
         o.inputtitle = _('Scroll To Bottom');
         o.onclick = function (_, section_id) {
-            const uiEl = m.lookupOption('_core_log', section_id)[0].getUIElement(section_id);
+            const uiEl = m.lookupOption('_core_log', section_id)?.[0]?.getUIElement(section_id);
             const element = uiEl?.node?.querySelector('textarea') || uiEl?.node?.firstChild;
             if (element) element.scrollTop = element.scrollHeight;
         };
-
-        poll.add(function () {
-            const tasks = [];
-            const appUi = appLogOpt.getUIElement('log');
-            const coreUi = coreLogOpt.getUIElement('log');
-
-            if (appUi?.node?.offsetParent !== null) {
-                tasks.push(momo.getLogStat('app').then(function (res) {
-                    if (res && (res.size !== logState.app.size || res.mtime !== logState.app.mtime)) {
-                        logState.app = { size: res.size, mtime: res.mtime };
-                        updateLogTextarea(appUi, res.content ?? '');
-                    }
-                }));
-            }
-
-            if (coreUi?.node?.offsetParent !== null) {
-                tasks.push(momo.getLogStat('core').then(function (res) {
-                    if (res && (res.size !== logState.core.size || res.mtime !== logState.core.mtime)) {
-                        logState.core = { size: res.size, mtime: res.mtime };
-                        updateLogTextarea(coreUi, res.content ?? '');
-                    }
-                }));
-            }
-
-            return Promise.all(tasks);
-        });
 
         s.tab('debug_log', _('Debug Log'));
 
@@ -180,6 +154,36 @@ return view.extend({
             });
         };
 
-        return m.render();
+        return m.render().then(function (mapEl) {
+            poll.add(function () {
+                if (!m.root) return Promise.resolve();
+
+                const tasks = [];
+                const appUi = appLogOpt.getUIElement('log');
+                const coreUi = coreLogOpt.getUIElement('log');
+
+                if (appUi?.node?.offsetParent) {
+                    tasks.push(momo.getLogStat('app').then(function (res) {
+                        if (res && (res.size !== logState.app.size || res.mtime !== logState.app.mtime)) {
+                            logState.app = { size: res.size, mtime: res.mtime };
+                            updateLogTextarea(appUi, res.content ?? '');
+                        }
+                    }));
+                }
+
+                if (coreUi?.node?.offsetParent) {
+                    tasks.push(momo.getLogStat('core').then(function (res) {
+                        if (res && (res.size !== logState.core.size || res.mtime !== logState.core.mtime)) {
+                            logState.core = { size: res.size, mtime: res.mtime };
+                            updateLogTextarea(coreUi, res.content ?? '');
+                        }
+                    }));
+                }
+
+                return Promise.all(tasks);
+            });
+
+            return mapEl;
+        });
     }
 });
