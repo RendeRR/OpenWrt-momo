@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=momo
 PKG_VERSION:=2026.10.14
-PKG_RELEASE:=6
+PKG_RELEASE:=7
 
 PKG_LICENSE:=GPL-3.0+
 PKG_MAINTAINER:=Joseph Mory <morytyann@gmail.com>
@@ -14,7 +14,7 @@ define Package/momo
   CATEGORY:=Network
   TITLE:=Transparent Proxy with sing-box on OpenWrt.
   URL:=https://github.com/nikkinikki-org
-  DEPENDS:=+ca-bundle +curl firewall4 +ip-full +kmod-inet-diag +kmod-nft-socket +kmod-nft-tproxy +kmod-tun +kmod-dummy
+  DEPENDS:=+ca-bundle +curl +firewall4 +ip-full +kmod-inet-diag +kmod-nft-socket +kmod-nft-tproxy +kmod-tun +kmod-dummy
 endef
 
 define Package/momo/conffiles

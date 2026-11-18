@@ -6,13 +6,13 @@ import { open, popen, stat } from 'fs';
 import { PATHS, get_paths, merge_exists, get_users, get_groups, get_cgroups, load_profile } from '/etc/momo/ucode/include.uc';
 
 function sh_quote(str) {
-	return "'" + replace(String(str ?? ''), /'/g, "'\\''") + "'";
+	return "'" + replace('' + (str ?? ''), /'/g, "'\\''") + "'";
 }
 
 function strip_ansi(output) {
 	output = replace(output, /\x1b\[[0-9;]*[a-zA-Z]/g, '');
 	output = replace(output, /\[[0-9;]+m/g, '');
-	output = replace(output, /\[[0-9]{4}\]\s*/g, ': ');
+	output = replace(output, /\[[0-9]{4}\][[:space:]]*/g, ': ');
 	output = replace(output, ' at /tmp/momo_editor.json', '');
 	return output;
 }
@@ -61,7 +61,8 @@ const methods = {
 		args: { type: 'type', max_bytes: 0 },
 		call: function(req) {
 			const log_type = req.args?.type ?? 'app';
-			const max_bytes = (req.args?.max_bytes > 0) ? req.args.max_bytes : 131072;
+			const req_max = int(req.args?.max_bytes ?? 0);
+			const max_bytes = (req_max > 0) ? req_max : 131072;
 			const log_path = (log_type == 'core') ? PATHS.core_log_path : PATHS.app_log_path;
 			const st = stat(log_path);
 			if (!st) {

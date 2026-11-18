@@ -133,7 +133,7 @@ export function trim_all(obj) {
 
 export function get_cgroups_version() {
 	const mounts = readfile('/proc/mounts') ?? '';
-	return match(mounts, /^cgroup\s/m) ? 1 : 2;
+	return (index(mounts, '\ncgroup ') >= 0 || substr(mounts, 0, 7) == 'cgroup ') ? 1 : 2;
 };
 
 export function get_users() {

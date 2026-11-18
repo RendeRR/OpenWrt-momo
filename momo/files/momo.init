@@ -51,6 +51,7 @@ boot() {
 start_service() {
 	# prepare files
 	prepare_files
+	rm -f "$STARTED_FLAG_PATH"
 	# load config
 	config_load momo
 	# check if enabled
@@ -161,7 +162,11 @@ start_service() {
 	# mixin
 	if [ "$core_only" = 0 ]; then
 		log "Mixin" "Mixin config."
-		ucode -S "$MIXIN_UC"
+		if ! ucode -S "$MIXIN_UC"; then
+			log "Mixin" "Mixin failed."
+			log "App" "Exit."
+			return
+		fi
 	fi
 	# format run profile unconditionally
 	log "Profile" "Formatting run profile..."
